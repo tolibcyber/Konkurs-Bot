@@ -1,18 +1,17 @@
 from aiogram import Router, types, F
 from aiogram.filters import Command, CommandObject
 import sqlite3
-# database.py va keyboard.py fayllaringdan importlar
 from database import ADMIN_ID, get_top_candidates 
-from keyboard import main_menu, get_battle_kb, sub_keyboard
+from keyboard import main_menu, get_battle_kb
 
 router = Router()
 
-# --- 1. START XABARI (MUKAMMAL VA TO'LIQ) ---
+# --- 1. START XABARI (O'SHA SEN SOG'INGAN TO'LIQ VARIANT) ---
 @router.message(Command("start"))
 async def start_handler(message: types.Message, command: CommandObject):
     user_id = message.from_user.id
     
-    # REFERAL ORQALI OVOZ BERISH MANTIQI
+    # REFERAL ORQALI OVOZ BERISH
     args = command.args
     if args and args.startswith("vote_"):
         candidate = args.replace("vote_", "")
@@ -20,7 +19,7 @@ async def start_handler(message: types.Message, command: CommandObject):
         conn = sqlite3.connect('bot_data.db')
         cursor = conn.cursor()
         
-        # FOYDALANUVCHI OLDIN OVOZ BERGANMI? (FAQAT 1 TA OVOZ SHARTI)
+        # FOYDALANUVCHI OLDIN OVOZ BERGANMI?
         cursor.execute("SELECT candidate_username FROM votes WHERE user_id = ?", (user_id,))
         check_vote = cursor.fetchone()
 
@@ -28,12 +27,12 @@ async def start_handler(message: types.Message, command: CommandObject):
             conn.close()
             return await message.answer(
                 "🚫 <b>Kechirasiz, qoidabuzarlik!</b>\n\nSiz tizimda allaqachon ovoz bergansiz. "
-                "Konkurs shaffofligini ta'minlash maqsadida bir foydalanuvchi faqat bitta nomzodga 1 marta ovoz bera oladi. "
+                "Konkurs shaffofligini ta'minlash maqsadida bir foydalanuvchi faqat 1 marta ovoz bera oladi. "
                 "Adolatli o'yin tarafdori bo'lganingiz uchun rahmat!", 
                 parse_mode="HTML"
             )
 
-        # Ovozni bazaga qo'shish
+        # OVOZNI QABUL QILISH
         cursor.execute("INSERT INTO votes (user_id, candidate_username) VALUES (?, ?)", (user_id, candidate))
         cursor.execute("UPDATE candidates SET votes_count = votes_count + 1 WHERE username = ?", (candidate,))
         conn.commit()
@@ -58,7 +57,6 @@ async def start_handler(message: types.Message, command: CommandObject):
 # --- 2. OVOZLI BATL (KONKURS XABARI) ---
 @router.message(F.text == "🎤 Ovozli Batl")
 async def battle_starter(message: types.Message):
-    # Faqat admin uchun
     if str(message.from_user.id) != str(ADMIN_ID): 
         return
 
@@ -81,7 +79,7 @@ async def battle_starter(message: types.Message):
 async def join_callback(callback: types.CallbackQuery):
     user_username = callback.from_user.username
     if not user_username:
-        return await callback.answer("❌ Xatolik: Profilingizda 'username' o'rnatilmagan. Sozlamalardan username qo'shing!", show_alert=True)
+        return await callback.answer("❌ Xatolik: Profilingizda username yo'q!", show_alert=True)
 
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
@@ -109,7 +107,7 @@ async def results_handler(message: types.Message):
     if str(message.from_user.id) != str(ADMIN_ID): 
         return
 
-    results = get_top_candidates(5) # Faqat eng kuchli 5 ta
+    results = get_top_candidates(5)
     if not results:
         return await message.answer("📊 <b>Hozircha faol ishtirokchilar mavjud emas.</b>", parse_mode="HTML")
 
