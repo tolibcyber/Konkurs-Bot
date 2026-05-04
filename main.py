@@ -1,36 +1,34 @@
 import asyncio
 import logging
-import sys
 from aiogram import Bot, Dispatcher
+from aiogram.enums import ParseMode
 from handlers import router
-from database import create_db
+from database import init_db
 
-# Bot tokeningni shu yerga yoz yoki Environment-dan olsin
-TOKEN = "TOKENINGNI_SHU_YERGA_YOZ"
+# Loglarni yoqamiz (Xato bo'lsa terminalda ko'rinadi)
+logging.basicConfig(level=logging.INFO)
 
 async def main():
-    # 1. Bazani yaratish (Agar bo'lmasa)
-    create_db()
-    
+    # 1. Ma'lumotlar bazasini ishga tushirish
+    init_db()
+
     # 2. Bot va Dispatcher ob'ektlarini yaratish
-    bot = Bot(token=TOKEN)
+    # Tokeningizni shu yerda qoldirdim, o'zgartirmang
+    bot = Bot(token="8139457013:AAHuRtJzTg_1qXR1r7e8o6KUY9SB6IrLZNM")
     dp = Dispatcher()
+
+    # 3. Routerni ulash
     dp.include_router(router)
 
-    # 3. Loglarni sozlash
-    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-
-    # 4. Conflict-ni oldini olish: Eski webhook yoki sessiyalarni o'chirish
-    # Bu aynan logdagi "Conflict: terminated by other getUpdates" xatosini yechadi
+    # 4. Tozalash (Bot o'chiq turganda kelgan xabarlarni o'chirib yuboradi)
     await bot.delete_webhook(drop_pending_updates=True)
-    
-    print("🚀 Bot muvaffaqiyatli ishga tushdi...")
-    
-    # 5. Botni yurgizish (Polling)
-    try:
-        await dp.start_polling(bot)
-    finally:
-        await bot.session.close()
+
+    # 5. Pollingni boshlash (MUHIM: allowed_updates qo'shildi!)
+    # Bu botga ham guruhlar, ham kanallardagi postlarni o'qishga ruxsat beradi
+    await dp.start_polling(
+        bot, 
+        allowed_updates=["message", "callback_query", "channel_post", "inline_query"]
+    )
 
 if __name__ == "__main__":
     try:
