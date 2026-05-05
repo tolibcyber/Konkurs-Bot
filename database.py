@@ -1,45 +1,44 @@
 import sqlite3
 from datetime import datetime
 
-# ADMIN_ID o'z joyida
+# ADMIN_ID (O'zgarmas)
 ADMIN_ID = 7288739341 
 
 def init_db():
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
     
-    # Foydalanuvchilar jadvali
+    # 1. Foydalanuvchilar jadvali
     cursor.execute('''CREATE TABLE IF NOT EXISTS users (
         user_id INTEGER PRIMARY KEY, 
         username TEXT, 
         joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
-    # Nomzodlar jadvali (chat_id va post_id bilan)
+    # 2. Nomzodlar jadvali (chat_id va post_id bilan)
     cursor.execute('''CREATE TABLE IF NOT EXISTS candidates (
         username TEXT PRIMARY KEY, 
         votes INTEGER DEFAULT 0,
         post_id INTEGER DEFAULT 0,
         chat_id TEXT DEFAULT NULL)''') 
     
-    # Ovozlar jadvali
+    # 3. Ovozlar jadvali (Bitta user faqat 1 marta ovoz berishi uchun PRIMARY KEY faqat user_id da)
     cursor.execute('''CREATE TABLE IF NOT EXISTS votes (
-        user_id INTEGER, 
-        candidate_username TEXT, 
-        PRIMARY KEY (user_id, candidate_username))''')
+        user_id INTEGER PRIMARY KEY, 
+        candidate_username TEXT)''')
     
-    # Sozlamalar jadvali
+    # 4. Sozlamalar jadvali
     cursor.execute('''CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY, 
         value TEXT)''')
     
-    # Majburiy obuna kanallari uchun alohida jadval
+    # 5. Majburiy obuna kanallari
     cursor.execute('''CREATE TABLE IF NOT EXISTS channels (
         username TEXT PRIMARY KEY)''')
     
     # Standart kanalni sozlamalarga qo'shish
     cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('channel', '@TolibTokyo')")
     
-    # Eskidan qolgan bazalarda ustunlar bo'lmasa, qo'shib qo'yamiz
+    # Migratsiya: Eskidan qolgan bazalarda ustunlar bo'lmasa qo'shish
     try:
         cursor.execute("ALTER TABLE candidates ADD COLUMN post_id INTEGER DEFAULT 0")
     except: pass
@@ -53,11 +52,10 @@ def init_db():
 # --- HANDLERS BILAN ISHLAYDIGAN ASOSIY FUNKSIYALAR ---
 
 def add_candidate_to_db(username, chat_id=None):
-    """Ham eski konkurs, ham yangi battle uchun universal funksiya"""
+    """Ishtirokchini bazaga qo'shish"""
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
     try:
-        # Agar chat_id bo'lsa yangi battle, bo'lmasa eski uslub
         cursor.execute(
             "INSERT INTO candidates (username, votes, chat_id) VALUES (?, 0, ?)", 
             (username, chat_id)
@@ -70,7 +68,7 @@ def add_candidate_to_db(username, chat_id=None):
         conn.close()
 
 def update_candidate_post_id(username, post_id):
-    """Yangi battledagi ishtirokchi postini yangilash uchun"""
+    """Post ID ni saqlash (Yangi battle uchun)"""
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
     cursor.execute("UPDATE candidates SET post_id = ? WHERE username = ?", (post_id, username))
@@ -78,28 +76,27 @@ def update_candidate_post_id(username, post_id):
     conn.close()
 
 def get_all_candidates():
-    """Barcha nomzodlarni reyting bo'yicha olish"""
+    """Reyting bo'yicha nomzodlar"""
     conn = sqlite3.connect('bot_data.db')
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    # Ovozlar soniga ko'ra tartiblaymiz
     cursor.execute("SELECT * FROM candidates ORDER BY votes DESC")
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
 
 def add_user(user_id, username):
-    """Yangi foydalanuvchini bazaga qo'shish"""
+    """Foydalanuvchini ro'yxatga olish"""
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
     cursor.execute("INSERT OR IGNORE INTO users (user_id, username) VALUES (?, ?)", (user_id, username))
     conn.commit()
     conn.close()
 
-# --- ADMIN VA SOZLAMALAR FUNKSIYALARI ---
+# --- ADMIN FUNKSIYALARI ---
 
 def get_all_user_ids():
-    """Rassilka (reklama) uchun barcha IDlarni olish"""
+    """Reklama uchun barcha IDlarni olish"""
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
     cursor.execute("SELECT user_id FROM users")
@@ -108,7 +105,7 @@ def get_all_user_ids():
     return [row[0] for row in rows]
 
 def get_total_users():
-    """Statistika uchun foydalanuvchilar soni"""
+    """Statistika uchun"""
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
     cursor.execute("SELECT COUNT(*) FROM users") 
@@ -117,7 +114,9 @@ def get_total_users():
     return count
 
 def add_channel(username):
-    """Majburiy obuna kanalini qo'shish"""
+    """Obuna kanalini qo'shish"""
+    if not username.startswith("@"):
+        username = "@" + username
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
     try:
@@ -128,7 +127,7 @@ def add_channel(username):
         conn.close()
 
 def get_channels():
-    """Barcha majburiy obuna kanallarini olish"""
+    """Barcha kanallarni olish"""
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
     cursor.execute("SELECT username FROM channels")
@@ -137,13 +136,12 @@ def get_channels():
     return [row[0] for row in rows]
 
 def remove_channel(username):
-    """Kanalni majburiy obunadan o'chirish"""
-    conn = sqlite3.connect('bot_id.db') # Bu yerda db nomi adashgan bo'lsa bot_data.db qiling
+    """Kanalni o'chirish"""
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
     cursor.execute("DELETE FROM channels WHERE username = ?", (username,))
     conn.commit()
     conn.close()
 
-# Bazani birinchi marta ishga tushirish
+# Baza yaratilishini ta'minlash
 init_db()
