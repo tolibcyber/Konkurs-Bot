@@ -131,9 +131,12 @@ async def voice_battle_reply_btn(message: types.Message):
     bot_info = await message.bot.get_me()
     guide_text = (
         f"🎤 <b>Ovozli Batl (Konkurs) tashkil qilish bo'yicha to'liq qo'llanma:</b>\n\n"
-        f"1️⃣ <b>Botni kanalga qo'shish:</b> Botni o'z kanalingizga admin qiling.\n\n"
-        f"2️⃣ <b>Konkursni boshlash:</b> Bot admin bo'lgan kanalingizga <code>#konkursx</code> yoki ushbu bo'limdagi <b>🚀 Yangi Battle</b> tugmasini ishlating.\n\n"
-        f"3️⃣ <b>Muhim:</b> Har bir ovoz beruvchi sening kanalingga obuna bo'lishi shart!"
+        f"O'z kanalingizda professional darajadagi konkurslarni o'tkazish juda oson!\n\n"
+        f"1️⃣ <b>Botni kanalga qo'shish:</b> Pastdagi tugma orqali botni o'z kanalingizga qo'shing va unga Admin huquqini bering.\n\n"
+        f"2️⃣ <b>Konkursni boshlash:</b> Bot admin bo'lgan kanalingizga <code>#konkursx</code> kalit so'zini yuboring yoki <b>🚀 Yangi Battle</b> tugmasini bosing.\n\n"
+        f"3️⃣ <b>Avtomatik post:</b> Bot darhol kanalga chiroyli dizayndagi konkurs postini joylashtiradi.\n\n"
+        f"⚠️ <b>Muhim eslatma:</b> Ishtirokchilar 'Qatnashish' tugmasini bosish orqali avtomatik ro'yxatga qo'shiladi.\n\n"
+        f"💎 <b>Botning afzalligi:</b> Har bir ovoz beruvchi majburiy obunadan o'tadi!"
     )
     await message.answer(guide_text, reply_markup=voice_battle_kb(bot_info.username), parse_mode="HTML")
 
