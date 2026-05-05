@@ -8,6 +8,10 @@ from datetime import datetime
 import asyncio
 from aiogram import Bot
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+import logging
+import asyncio
+from datetime import datetime
+# ... qolgan importlar
 from keyboard import *
 from database import (
     add_user, ADMIN_ID, get_total_users, 
@@ -152,7 +156,7 @@ async def start_handler(message: types.Message, command: CommandObject):
     start_txt = (
         f"👋 Salom {message.from_user.first_name} \n\n"
         f"Sizni botimizda ko'rib turganimizdan xursandmiz! Bu yerda siz quyidagi imkoniyatlarga egasiz:\n\n"
-        f"🎡 <b>Baraban:</b> O'z omadingizni sinab ko'ring va sovg'alar yuting!\n"
+        f"🎡 <b>Baraban:</b> Barabanga Ism Yozib G'olib Aniqlaysiz! Juda zo'r!\n"
         f"✌️ <b>Enik-Benik:</b> Do'stlar bilan qiziqarli o'yinlar o'ynang!\n"
         f"🎤 <b>Ovozli Batl:</b> O'z kanalingizda professional konkurslar tashkil qiling!\n\n"
         f"🚀 <b>Pastdagi menyudan o'zingizga kerakli bo'limni tanlang:</b>"
@@ -381,49 +385,51 @@ async def back_to_main_handler(callback: types.CallbackQuery):
 
 async def auto_update_scores(bot: Bot):
     while True:
-        await asyncio.sleep(300) # 5 minut kutish (server nagruzka bo'lmasligi uchun)
-        
-        if not LAST_BATTLE_POST["chat_id"]:
-            continue
+        try:
+            await asyncio.sleep(300) # 5 minut kutish
             
-        # Bazadan hamma nomzodlarni olamiz
-        candidates = get_all_candidates()
-        
-        for c in candidates:
-            # Agar ishtirokchining post_id si bo'lmasa, uni o'tkazib yuboramiz
-            if not c.get('post_id'):
+            # 1. Ishtirokchilarni bazadan olish
+            candidates = get_all_candidates()
+            
+            # Agar bazada nomzodlar bo'lmasa, o'tkazib yuboramiz
+            if not candidates:
                 continue
-            
-            # BALLARNI HISOBLASH MANTIQI:
-            # Reaksiyalar: har biri 1 ball (max 100)
-            # Kommentlar: har biri 2 ball (max 100 ta user) - buni keyingi bosqichda ulaymiz
-            # Stars: har biri 5 ball
-            
-            reaksiyalar = min(c.get('votes', 0), 100) # Hozircha votes orqali
-            komentlar = 0 # Kelajakda bazadan sanaladi
-            stars = 0
-            
-            jami_ball = reaksiyalar + (komentlar * 2) + (stars * 5)
 
-            updated_text = (
-                f"🏆 <b>BATTLE ISHTIROKCHISI:</b> @{c['username']}\n\n"
-                f"📊 <b>Ballar taqsimoti:</b>\n"
-                f"❤️ Reaksiyalar: {reaksiyalar} / 100\n"
-                f"💬 Komentlar: {komentlar} / 100\n"
-                f"⭐ Stars: {stars}\n\n"
-                f"📈 <b>UMUMIY BALL: {jami_ball}</b>\n"
-                f"──────────────────\n"
-                f"🕒 Oxirgi yangilanish: {datetime.now().strftime('%H:%M')}"
-            )
-            
-            try:
-                # Xabarni yangilash
-                await bot.edit_message_text(
-                    chat_id=LAST_BATTLE_POST["chat_id"],
-                    message_id=c['post_id'],
-                    text=updated_text,
-                    parse_mode="HTML"
+            for c in candidates:
+                # Agar post_id yoki chat_id bo'lmasa, yangilay olmaymiz
+                # LAST_BATTLE_POST["chat_id"] o'rniga bazadan yoki globaldan aniq olayotganimizga ishonch hosil qilamiz
+                chat_id = LAST_BATTLE_POST.get("chat_id")
+                post_id = c.get('post_id')
+
+                if not chat_id or not post_id:
+                    continue
+                
+                # 2. Ballarni hisoblash (Hozircha bazadagi 'votes' ustunidan oladi)
+                # Kelajakda reaksiyalarni shu yerda bot.get_chat... orqali sanash mumkin
+                reaksiyalar = c.get('votes', 0)
+                jami_ball = reaksiyalar # Hozircha oddiy formula
+                
+                updated_text = (
+                    f"🏆 <b>BATTLE ISHTIROKCHISI:</b> @{c['username']}\n\n"
+                    f"📊 <b>Ballar holati:</b>\n"
+                    f"✅ Ovozlar: {reaksiyalar}\n"
+                    f"📈 <b>UMUMIY BALL: {jami_ball}</b>\n"
+                    f"──────────────────\n"
+                    f"🕒 Oxirgi yangilanish: {datetime.now().strftime('%H:%M')}"
                 )
-            except Exception as e:
-                # Agar xabar o'chirilgan bo'lsa yoki o'zgarish bo'lmasa xato bermasligi uchun
-                continue
+                
+                try:
+                    await bot.edit_message_text(
+                        chat_id=chat_id,
+                        message_id=post_id,
+                        text=updated_text,
+                        parse_mode="HTML"
+                    )
+                    logging.info(f"Ball yangilandi: @{c['username']}")
+                except Exception as e:
+                    # Agar xabar o'zgarmagan bo'lsa xato beradi, shuni o'tkazib yuboramiz
+                    continue
+                    
+        except Exception as main_e:
+            logging.error(f"Auto-update xatosi: {main_e}")
+            await asyncio.sleep(10) # Xato bo'lsa ozgina kutib keyin davom etadi
