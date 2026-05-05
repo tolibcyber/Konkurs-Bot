@@ -285,30 +285,29 @@ async def results_callback(callback: types.CallbackQuery):
 
 @router.callback_query(F.data == "join_contest")
 async def join_contest_handler(callback: types.CallbackQuery):
-    user = callback.from_user
-    username = user.username
+    username = callback.from_user.username
     
-    # 1. Username borligini tekshirish (Ovozli batl uchun shart)
     if not username:
-        return await callback.answer("Xato: Avval Telegram sozlamalaridan username (@manzil) o'rnating!", show_alert=True)
+        return await callback.answer("Username o'rnating! ⚠️", show_alert=True)
 
-    # 2. Bazaga qo'shish (database.py dagi funksiya orqali)
-    # Eslatma: Ovozli batl uchun chat_id shart emas, lekin funksiyada bo'lsa yuboramiz
+    # 1. Bazaga qo'shish
     added = add_candidate_to_db(f"@{username}", callback.message.chat.id)
     
     if added:
-        # Ro'yxatni yangilash
+        # 2. Bazadan yangilangan ishtirokchilar ro'yxatini olish
         candidates = get_all_candidates()
         bot_info = await callback.bot.get_me()
         
+        # 3. KANALDA REPLI MARKUPNI YANGILASH (Muhim joyi shu!)
         try:
             await callback.message.edit_reply_markup(
                 reply_markup=get_battle_kb(candidates, bot_info.username)
             )
-            await callback.answer("Siz muvaffaqiyatli qo'shildingiz! ✅", show_alert=True)
+            await callback.answer("Ro'yxatga qo'shildingiz! ✅", show_alert=True)
         except Exception as e:
-            logging.error(f"Keyboard yangilashda xato: {e}")
-            await callback.answer("Ro'yxatga qo'shildingiz! (Lekin menyu yangilanmadi)", show_alert=True)
+            # Agar xabar o'zgarmagan bo'lsa xato bermasligi uchun
+            logging.error(f"Yangilashda xato: {e}")
+            await callback.answer("Muvaffaqiyatli! 🚀", show_alert=True)
     else:
         await callback.answer("Siz allaqachon ro'yxatda borsiz! 😊", show_alert=True)
 
