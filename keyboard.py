@@ -1,6 +1,6 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, ReplyKeyboardMarkup, KeyboardButton
 
-# 1. ASOSIY REPLI MENYU (5 TA BO'LIM VA ADMIN PANEL)
+# 1. ASOSIY REPLI MENYU (Barcha bo'limlar ajratilgan)
 def main_reply_menu(user_id, admin_id):
     kb = [
         [
@@ -13,7 +13,6 @@ def main_reply_menu(user_id, admin_id):
         ]
     ]
     
-    # Admin bo'lsa, panel tugmasini qo'shish
     if str(user_id) == str(admin_id):
         kb.append([KeyboardButton(text="⚙️ Admin Panel")])
         
@@ -23,7 +22,39 @@ def main_reply_menu(user_id, admin_id):
         input_field_placeholder="Bo'limni tanlang..."
     )
 
-# 2. BARABAN VA BOSHQALAR UCHUN UMUMIY INLINE
+# 2. OVOZLI BATL UCHUN (Deep-link ovoz berish tizimi)
+def get_battle_kb(candidates, bot_username):
+    buttons = []
+    for cand in candidates:
+        clean_username = cand['username'].replace("@", "")
+        vote_link = f"https://t.me/{bot_username}?start=vote_{clean_username}"
+        
+        buttons.append([InlineKeyboardButton(
+            text=f"🔹 @{clean_username} — {cand['votes']} ovoz", 
+            url=vote_link
+        )])
+    
+    buttons.append([InlineKeyboardButton(text="🏆 KONKURSGA QO'SHILISH ➕", callback_data="join_contest")])
+    buttons.append([InlineKeyboardButton(text="📊 Natijalar", callback_data="results")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+# 3. YANGI BATTLE (BETA) UCHUN - Faqat bitta qatnashish tugmasi
+def join_new_battle_kb():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Battlega qatnashish", callback_data="join_new_battle")]
+    ])
+
+# 4. ADMIN PANEL MENYUSI
+def admin_menu_kb():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="📊 Statistika", callback_data="admin_stats"),
+            InlineKeyboardButton(text="📢 Reklama", callback_data="send_ads") 
+        ],
+        [InlineKeyboardButton(text="⬅️ Orqaga", callback_data="back_to_main")]
+    ])
+
+# 5. O'YINLAR UCHUN INLINE (Web App)
 def section_inline_kb(url=None, callback_data=None):
     buttons = []
     if url:
@@ -34,7 +65,15 @@ def section_inline_kb(url=None, callback_data=None):
     buttons.append([InlineKeyboardButton(text="⬅️ Orqaga", callback_data="back_to_main")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
-# 3. OVOZLI BATL UCHUN (BOTNI KANALGA QO'SHISH)
+# 6. MAJBURIY OBUNA
+def sub_keyboard(channel_url, ref_link="none"):
+    clean_url = channel_url.replace("@", "").replace("https://t.me/", "")
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📢 Kanalga a'zo bo'lish", url=f"https://t.me/{clean_url}")],
+        [InlineKeyboardButton(text="✅ Tekshirish", callback_data=f"check_sub_{ref_link}")]
+    ])
+
+# 7. BOTNI KANALGA QO'SHISH (Admin uchun qulaylik)
 def voice_battle_kb(bot_username):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
@@ -43,63 +82,16 @@ def voice_battle_kb(bot_username):
         )],
         [InlineKeyboardButton(text="⬅️ Orqaga", callback_data="back_to_main")]
     ])
+# keyboard.py faylining eng oxiriga qo'shib qo'y:
 
-# 4. KANALDAGI ASL KONKURS TUGMALARI (RASMDAGI VARIANT)
-def get_battle_kb(candidates, bot_username):
-    buttons = []
-    
-    # Ishtirokchilar ro'yxati (Deep-link orqali ovoz berish)
-    for cand in candidates:
-        # Usernameni @ siz yuborish kerak linkda
-        clean_username = cand['username'].replace("@", "")
-        vote_link = f"https://t.me/{bot_username}?start=vote_{clean_username}"
-        
-        buttons.append([InlineKeyboardButton(
-            text=f"🔹 @{clean_username} — {cand['votes']} ovoz", 
-            url=vote_link
-        )])
-    
-    # Konkursga qo'shilish tugmasi (Callback orqali ishlaydi)
-    buttons.append([InlineKeyboardButton(
-        text="🏆 KONKURSGA QO'SHILISH ➕", 
-        callback_data="join_contest" 
-    )])
-    
-    # Natijalarni ko'rish
-    buttons.append([InlineKeyboardButton(
-        text="📊 Natijalar", 
-        callback_data="results"
-    )])
-    
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
-
-# 5. ENIK-BENIK (TIC-TAC-TOE)
+# 8. ENIK-BENIK (TIC-TAC-TOE) UCHUN ALOHIDA TUGMA
 def enik_benik_inline_kb(url):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="O'yinni boshlash 🎮", web_app=WebAppInfo(url=url))],
         [InlineKeyboardButton(text="⬅️ Orqaga", callback_data="back_to_main")]
     ])
 
-# 6. ADMIN PANEL MENYUSI
-def admin_menu_kb():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="📊 Statistika", callback_data="admin_stats"),
-            InlineKeyboardButton(text="📢 Reklama", callback_data="send_ads") 
-        ],
-        [InlineKeyboardButton(text="⬅️ Orqaga", callback_data="back_to_main")]
-    ])
-
-# 7. MAJBURIY OBUNA
-def sub_keyboard(channel_url, ref_link="none"):
-    # URL ni tozalash
-    clean_url = channel_url.replace("@", "").replace("https://t.me/", "")
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📢 Kanalga a'zo bo'lish", url=f"https://t.me/{clean_url}")],
-        [InlineKeyboardButton(text="✅ Tekshirish", callback_data=f"check_sub_{ref_link}")]
-    ])
-
-# 8. ODDIY ORQAGA QAYTISH
+# 9. ODDIY ORQAGA QAYTISH TUGMASI
 def back_to_main_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="⬅️ Orqaga", callback_data="back_to_main")]
