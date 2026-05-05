@@ -262,26 +262,52 @@ async def check_subscription_callback(callback: types.CallbackQuery):
 
 @router.callback_query(F.data == "results")
 async def results_callback(callback: types.CallbackQuery):
+    # Nomzodlarni olish
     candidates = get_all_candidates()
+    
     if not candidates:
         return await callback.answer("Hozircha nomzodlar yo'q!", show_alert=True)
     
+    # 1. Umumiy natija (Hamma uchun alert shaklida)
     res_txt = "📊 Konkurs natijalari:\n\n"
     for i, c in enumerate(candidates, 1):
-        res_txt += f"{i}. @{c['username']} — {c['votes']} ovoz\n"
+        # Username bo'lmasa "Ishtirokchi" deb chiqarish (xatolik bermasligi uchun)
+        name = c['username'] if c['username'] else "Ishtirokchi"
+        res_txt += f"{i}. @{name} — {c['votes']} ovoz\n"
     
     await callback.answer(res_txt, show_alert=True)
-    user_status = await callback.bot.get_chat_member(chat_id=callback.message.chat.id, user_id=callback.from_user.id)
-    
-    if str(callback.from_user.id) == str(ADMIN_ID) or user_status.status in ["administrator", "creator"]:
+
+    # 2. Adminlikni tekshirish (Xatolikdan himoyalangan)
+    is_admin = False
+    try:
+        # Avval ID bo'yicha tekshiramiz
+        if str(callback.from_user.id) == str(ADMIN_ID):
+            is_admin = True
+        else:
+            # Keyin chatdagi statusini tekshiramiz
+            user_status = await callback.bot.get_chat_member(
+                chat_id=callback.message.chat.id, 
+                user_id=callback.from_user.id
+            )
+            if user_status.status in ["administrator", "creator"]:
+                is_admin = True
+    except Exception as e:
+        logging.error(f"Statusni tekshirishda xato: {e}")
+
+    # 3. Agar admin bo'lsa, TOP 5 ni xabar sifatida yuboramiz
+    if is_admin:
         top_5 = candidates[:5]
-        top_txt = "🔥 <b>TOP 5 Nomzodlar:</b>\n\n"
+        top_txt = "🔥 <b>TOP 5 G'oliblar</b>\n\n"
         for i, c in enumerate(top_5, 1):
-            top_txt += f"{i}️⃣ @{c['username']} — {c['votes']} ta ovoz\n"
+            name = c['username'] if c['username'] else "Ishtirokchi"
+            top_txt += f"{i}️⃣ @{name} — {c['votes']} ta ovoz\n"
+        
         top_txt += "\n🏆 <i>G'oliblik sari olg'a!</i>"
+        
         try:
             await callback.message.answer(top_txt, parse_mode="HTML")
-        except: pass
+        except:
+            pass
 
 @router.callback_query(F.data == "join_contest")
 async def join_callback(callback: types.CallbackQuery):
