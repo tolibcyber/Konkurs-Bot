@@ -3,8 +3,7 @@ import logging
 import os  # Muhit o'zgaruvchilari (token) uchun kerak
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
-from handlers import router, auto_update_scores # auto_update_scores qo'shildi
-asyncio.create_task(auto_update_scores(Bot))
+from handlers import router, auto_update_scores 
 from database import init_db
 
 # Loglarni yoqamiz (Xato bo'lsa terminalda ko'rinadi)
@@ -22,7 +21,6 @@ async def main():
         return
 
     # Bot va Dispatcher ob'ektlarini yaratish
-    # Default parse_mode ni HTML qilib qo'yamiz, shunda hamma joyda ishlidi
     bot = Bot(token=TOKEN, parse_mode=ParseMode.HTML)
     dp = Dispatcher()
 
@@ -30,7 +28,8 @@ async def main():
     dp.include_router(router)
 
     # --- YANGI QISM: 5 MINUTLIK MOTORNI ISHGA TUSHIRISH ---
-    # Bu qator bot polling boshlanishi bilan fonda ballarni yangilashni boshlaydi
+    # Bu qator bot polling boshlanishi bilan fonda ballarni yangilashni boshlaydi.
+    # Uni aynan shu yerda (main ichida) chaqirish shart!
     asyncio.create_task(auto_update_scores(bot))
     # ---------------------------------------------------
 
