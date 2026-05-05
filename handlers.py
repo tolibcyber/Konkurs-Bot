@@ -262,71 +262,55 @@ async def check_subscription_callback(callback: types.CallbackQuery):
 
 @router.callback_query(F.data == "results")
 async def results_callback(callback: types.CallbackQuery):
-    # Nomzodlarni olish
     candidates = get_all_candidates()
-    
     if not candidates:
         return await callback.answer("Hozircha nomzodlar yo'q!", show_alert=True)
     
-    # 1. Umumiy natija (Hamma uchun alert shaklida)
     res_txt = "📊 Konkurs natijalari:\n\n"
     for i, c in enumerate(candidates, 1):
-        # Username bo'lmasa "Ishtirokchi" deb chiqarish (xatolik bermasligi uchun)
-        name = c['username'] if c['username'] else "Ishtirokchi"
-        res_txt += f"{i}. @{name} — {c['votes']} ovoz\n"
+        res_txt += f"{i}. @{c['username']} — {c['votes']} ovoz\n"
     
     await callback.answer(res_txt, show_alert=True)
-
-    # 2. Adminlikni tekshirish (Xatolikdan himoyalangan)
-    is_admin = False
-    try:
-        # Avval ID bo'yicha tekshiramiz
-        if str(callback.from_user.id) == str(ADMIN_ID):
-            is_admin = True
-        else:
-            # Keyin chatdagi statusini tekshiramiz
-            user_status = await callback.bot.get_chat_member(
-                chat_id=callback.message.chat.id, 
-                user_id=callback.from_user.id
-            )
-            if user_status.status in ["administrator", "creator"]:
-                is_admin = True
-    except Exception as e:
-        logging.error(f"Statusni tekshirishda xato: {e}")
-
-    # 3. Agar admin bo'lsa, TOP 5 ni xabar sifatida yuboramiz
-    if is_admin:
+    user_status = await callback.bot.get_chat_member(chat_id=callback.message.chat.id, user_id=callback.from_user.id)
+    
+    if str(callback.from_user.id) == str(ADMIN_ID) or user_status.status in ["administrator", "creator"]:
         top_5 = candidates[:5]
         top_txt = "🔥 <b>TOP 5 G'oliblar</b>\n\n"
         for i, c in enumerate(top_5, 1):
-            name = c['username'] if c['username'] else "Ishtirokchi"
-            top_txt += f"{i}️⃣ @{name} — {c['votes']} ta ovoz\n"
-        
+            top_txt += f"{i}️⃣ @{c['username']} — {c['votes']} ta ovoz\n"
         top_txt += "\n🏆 <i>G'oliblik sari olg'a!</i>"
-        
         try:
             await callback.message.answer(top_txt, parse_mode="HTML")
-        except:
-            pass
+        except: pass
 
 @router.callback_query(F.data == "join_contest")
-async def join_callback(callback: types.CallbackQuery):
-    if not await is_subscribed(callback.bot, callback.from_user.id):
-        return await callback.answer("Konkursda qatnashish uchun kanalga obuna bo'ling!", show_alert=True)
-
-    username = callback.from_user.username
-    if not username:
-        return await callback.answer("Username o'rnating!", show_alert=True)
+async def join_contest_handler(callback: types.CallbackQuery):
+    user = callback.from_user
+    username = user.username
     
-    if add_candidate_to_db(username):
+    # 1. Username borligini tekshirish (Ovozli batl uchun shart)
+    if not username:
+        return await callback.answer("Xato: Avval Telegram sozlamalaridan username (@manzil) o'rnating!", show_alert=True)
+
+    # 2. Bazaga qo'shish (database.py dagi funksiya orqali)
+    # Eslatma: Ovozli batl uchun chat_id shart emas, lekin funksiyada bo'lsa yuboramiz
+    added = add_candidate_to_db(f"@{username}", callback.message.chat.id)
+    
+    if added:
+        # Ro'yxatni yangilash
         candidates = get_all_candidates()
-        bot_info = await callback.bot.get_me() # message.bot o'rniga callback.bot
-        await callback.message.edit_reply_markup(
-            reply_markup=get_battle_kb(candidates, bot_info.username)
-        )
-        await callback.answer("Muvaffaqiyatli ro'yxatga qo'shildingiz!", show_alert=True)
+        bot_info = await callback.bot.get_me()
+        
+        try:
+            await callback.message.edit_reply_markup(
+                reply_markup=get_battle_kb(candidates, bot_info.username)
+            )
+            await callback.answer("Siz muvaffaqiyatli qo'shildingiz! ✅", show_alert=True)
+        except Exception as e:
+            logging.error(f"Keyboard yangilashda xato: {e}")
+            await callback.answer("Ro'yxatga qo'shildingiz! (Lekin menyu yangilanmadi)", show_alert=True)
     else:
-        await callback.answer("Siz allaqachon ro'yxatdasiz!", show_alert=True)
+        await callback.answer("Siz allaqachon ro'yxatda borsiz! 😊", show_alert=True)
 
 @router.callback_query(F.data == "join_new_battle")
 async def join_new_battle_handler(callback: types.CallbackQuery):
