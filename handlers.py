@@ -383,39 +383,59 @@ async def back_to_main_handler(callback: types.CallbackQuery):
         await callback.message.answer(start_txt, reply_markup=main_reply_menu(user_id, ADMIN_ID), parse_mode="HTML")
         await callback.answer()
 
+# --- 1-QISM: MULTI-KANAL UCHUN BAZA FUNKSIYALARI ---
+
+def add_candidate_to_db(username, chat_id):
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    try:
+        # chat_id - bu nomzod qaysi kanalda ekanligini bildiradi
+        cursor.execute("INSERT INTO candidates (username, votes, chat_id) VALUES (?, ?, ?)", (username, 0, chat_id))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+    finally:
+        conn.close()
+
+def get_all_candidates():
+    conn = sqlite3.connect('bot_data.db')
+    conn.row_factory = sqlite3.Row 
+    cursor = conn.cursor()
+    # post_id va chat_id avto-yangilash uchun juda muhim
+    cursor.execute("SELECT username, votes, post_id, chat_id FROM candidates ORDER BY votes DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+# --- 2-QISM: AVTO-YANGILASH MOTORU ---
+
 async def auto_update_scores(bot: Bot):
+    """Har 5 daqiqada barcha kanallardagi ballarni yangilab chiqadi"""
     while True:
         try:
-            await asyncio.sleep(300) # 5 minut kutish
-            
-            # 1. Ishtirokchilarni bazadan olish
+            await asyncio.sleep(300) # 300 soniya = 5 daqiqa
             candidates = get_all_candidates()
             
-            # Agar bazada nomzodlar bo'lmasa, o'tkazib yuboramiz
             if not candidates:
                 continue
 
             for c in candidates:
-                # Agar post_id yoki chat_id bo'lmasa, yangilay olmaymiz
-                # LAST_BATTLE_POST["chat_id"] o'rniga bazadan yoki globaldan aniq olayotganimizga ishonch hosil qilamiz
-                chat_id = LAST_BATTLE_POST.get("chat_id")
+                chat_id = c.get('chat_id')
                 post_id = c.get('post_id')
-
+                
                 if not chat_id or not post_id:
                     continue
                 
-                # 2. Ballarni hisoblash (Hozircha bazadagi 'votes' ustunidan oladi)
-                # Kelajakda reaksiyalarni shu yerda bot.get_chat... orqali sanash mumkin
-                reaksiyalar = c.get('votes', 0)
-                jami_ball = reaksiyalar # Hozircha oddiy formula
-                
+                votes = c.get('votes', 0)
+                # Xabar matni (o'zing xohlagandek tahrirlashing mumkin)
                 updated_text = (
                     f"🏆 <b>BATTLE ISHTIROKCHISI:</b> @{c['username']}\n\n"
                     f"📊 <b>Ballar holati:</b>\n"
-                    f"✅ Ovozlar: {reaksiyalar}\n"
-                    f"📈 <b>UMUMIY BALL: {jami_ball}</b>\n"
+                    f"✅ Ovozlar: {votes}\n"
+                    f"📈 <b>UMUMIY BALL: {votes}</b>\n"
                     f"──────────────────\n"
-                    f"🕒 Oxirgi yangilanish: {datetime.now().strftime('%H:%M')}"
+                    f"🕒 Yangilandi: {datetime.now().strftime('%H:%M')}"
                 )
                 
                 try:
@@ -425,11 +445,10 @@ async def auto_update_scores(bot: Bot):
                         text=updated_text,
                         parse_mode="HTML"
                     )
-                    logging.info(f"Ball yangilandi: @{c['username']}")
-                except Exception as e:
-                    # Agar xabar o'zgarmagan bo'lsa xato beradi, shuni o'tkazib yuboramiz
+                except Exception:
+                    # Agar xabar o'zgarmagan bo'lsa yoki bot kanaldan haydalgan bo'lsa xatoni o'tkazib yuboradi
                     continue
                     
-        except Exception as main_e:
-            logging.error(f"Auto-update xatosi: {main_e}")
-            await asyncio.sleep(10) # Xato bo'lsa ozgina kutib keyin davom etadi
+        except Exception as e:
+            logging.error(f"Avto-yangilashda xato: {e}")
+            await asyncio.sleep(10)
