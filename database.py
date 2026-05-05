@@ -13,7 +13,7 @@ def init_db():
         username TEXT, 
         joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
-    # Nomzodlar jadvali - CHAT_ID qo'shildi!
+    # Nomzodlar jadvali - post_id va chat_id BILAN
     cursor.execute('''CREATE TABLE IF NOT EXISTS candidates (
         username TEXT PRIMARY KEY, 
         votes INTEGER DEFAULT 0,
@@ -34,7 +34,7 @@ def init_db():
     # Standart kanal
     cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('channel', '@TolibTokyo')")
     
-    # Eski bazalarga yangi ustunlarni qo'shish (Xatolik bermasligi uchun)
+    # Agar jadval bo'lsa-yu, ustunlar yo'q bo'lsa - qo'shib qo'yamiz
     try:
         cursor.execute("ALTER TABLE candidates ADD COLUMN post_id INTEGER DEFAULT 0")
     except: pass
@@ -45,21 +45,14 @@ def init_db():
     conn.commit()
     conn.close()
 
-def add_user(user_id, username):
-    conn = sqlite3.connect('bot_data.db')
-    cursor = conn.cursor()
-    cursor.execute("INSERT OR IGNORE INTO users (user_id, username) VALUES (?, ?)", (user_id, username))
-    conn.commit()
-    conn.close()
-
-# --- YANGILANGAN BATTLE FUNKSIYALARI ---
+# --- YANGI BATTLE FUNKSIYALARI ---
 
 def add_candidate_to_db(username, chat_id):
     """Ishtirokchini chat_id bilan bazaga qo'shish"""
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
     try:
-        # Chat_id ni ham saqlash shart, aks holda bot tahrirlay olmaydi
+        # chat_id ni saqlash shart!
         cursor.execute("INSERT INTO candidates (username, votes, chat_id) VALUES (?, 0, ?)", (username, chat_id))
         conn.commit()
         return True
@@ -69,49 +62,30 @@ def add_candidate_to_db(username, chat_id):
         conn.close()
 
 def update_candidate_post_id(username, post_id):
-    """Xabar ID sini saqlash"""
+    """Xabar ID sini saqlash (Yangilash tugmasi ishlashi uchun)"""
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
     cursor.execute("UPDATE candidates SET post_id = ? WHERE username = ?", (post_id, username))
     conn.commit()
     conn.close()
 
-def get_all_candidates():
-    """Hamma ustunlarni (chat_id, post_id bilan) olish"""
-    conn = sqlite3.connect('bot_data.db')
-    conn.row_factory = sqlite3.Row 
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM candidates")
-    rows = cursor.fetchall()
-    conn.close()
-    return [dict(row) for row in rows]
-
-# --- QOLGAN FUNKSIYALAR ---
-
-def get_setting(key):
+def get_candidate_votes(username):
+    """Faqat bitta nomzodning ovozini olish (Refresh tugmasi uchun)"""
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
-    cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
+    cursor.execute("SELECT votes FROM candidates WHERE username = ?", (username,))
     res = cursor.fetchone()
     conn.close()
-    return res[0] if res else "@TolibTokyo"
+    return res[0] if res else 0
 
-def set_setting(key, value):
+# --- QOLGAN STANDART FUNKSIYALAR ---
+
+def add_user(user_id, username):
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
+    cursor.execute("INSERT OR IGNORE INTO users (user_id, username) VALUES (?, ?)", (user_id, username))
     conn.commit()
     conn.close()
-
-def get_stats():
-    conn = sqlite3.connect('bot_data.db')
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM users")
-    total = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM users WHERE joined_at >= date('now', '-30 days')")
-    monthly = cursor.fetchone()[0]
-    conn.close()
-    return total, monthly
 
 def get_total_users():
     conn = sqlite3.connect('bot_data.db')
@@ -121,36 +95,11 @@ def get_total_users():
     conn.close()
     return count
 
-def add_channel(username):
-    conn = sqlite3.connect('bot_data.db')
-    cursor = conn.cursor()
-    cursor.execute("CREATE TABLE IF NOT EXISTS channels (username TEXT PRIMARY KEY)")
-    try:
-        cursor.execute("INSERT INTO channels (username) VALUES (?)", (username,))
-        conn.commit()
-    except: pass
-    conn.close()
-
 def get_channels():
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
     cursor.execute("CREATE TABLE IF NOT EXISTS channels (username TEXT PRIMARY KEY)")
     cursor.execute("SELECT username FROM channels")
-    rows = cursor.fetchall()
-    conn.close()
-    return [row[0] for row in rows]
-
-def remove_channel(username):
-    conn = sqlite3.connect('bot_data.db')
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM channels WHERE username = ?", (username,))
-    conn.commit()
-    conn.close()
-
-def get_all_user_ids():
-    conn = sqlite3.connect('bot_data.db')
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id FROM users")
     rows = cursor.fetchall()
     conn.close()
     return [row[0] for row in rows]
