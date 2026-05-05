@@ -201,7 +201,7 @@ async def join_new_battle_handler(callback: types.CallbackQuery):
 async def auto_update_scores(bot: Bot):
     while True:
         try:
-            await asyncio.sleep(300) 
+            await asyncio.sleep(30) 
             candidates = get_all_candidates()
             for c in candidates:
                 if not c['chat_id'] or not c['post_id']: continue
