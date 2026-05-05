@@ -13,10 +13,11 @@ def init_db():
         username TEXT, 
         joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
-    # Nomzodlar jadvali - USTUN NOMI 'votes' QILINDI (handlers.py ga mos)
+    # Nomzodlar jadvali - YANGILANDI: post_id ustuni qo'shildi
     cursor.execute('''CREATE TABLE IF NOT EXISTS candidates (
         username TEXT PRIMARY KEY, 
-        votes INTEGER DEFAULT 0)''')
+        votes INTEGER DEFAULT 0,
+        post_id INTEGER DEFAULT 0)''') # Yangi battle xabarini tahrirlash uchun
     
     # Ovozlar jadvali
     cursor.execute('''CREATE TABLE IF NOT EXISTS votes (
@@ -32,6 +33,12 @@ def init_db():
     # @TolibTokyo ni standart kanal sifatida kiritamiz
     cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('channel', '@TolibTokyo')")
     
+    # Agar jadval avvaldan bo'lsa-yu, post_id bo'lmasa - uni qo'shib qo'yamiz
+    try:
+        cursor.execute("ALTER TABLE candidates ADD COLUMN post_id INTEGER DEFAULT 0")
+    except:
+        pass
+    
     conn.commit()
     conn.close()
 
@@ -41,6 +48,33 @@ def add_user(user_id, username):
     cursor.execute("INSERT OR IGNORE INTO users (user_id, username) VALUES (?, ?)", (user_id, username))
     conn.commit()
     conn.close()
+
+# --- YANGI BATTLE UCHUN KERAKLI FUNKSIYALAR ---
+
+def add_candidate_to_db(username):
+    """Yangi ishtirokchini bazaga qo'shish"""
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    try:
+        cursor.execute("INSERT INTO candidates (username, votes) VALUES (?, 0)", (username,))
+        conn.commit()
+        return True
+    except:
+        return False
+    finally:
+        conn.close()
+
+def get_all_candidates():
+    """Hamma ishtirokchilarni lug'at ko'rinishida olish (auto-update uchun)"""
+    conn = sqlite3.connect('bot_data.db')
+    conn.row_factory = sqlite3.Row # Ustun nomlari bilan olish uchun
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM candidates")
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+# --- ESKI FUNKSIYALARING (O'ZGARMADI) ---
 
 def get_setting(key):
     conn = sqlite3.connect('bot_data.db')
@@ -70,7 +104,7 @@ def get_stats():
 def get_candidates():
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
-    cursor.execute("SELECT username, votes FROM candidates") # votes_count emas votes
+    cursor.execute("SELECT username, votes FROM candidates") 
     rows = cursor.fetchall()
     conn.close()
     return {row[0]: row[1] for row in rows}
@@ -78,7 +112,7 @@ def get_candidates():
 def get_top_5():
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
-    cursor.execute("SELECT username, votes FROM candidates ORDER BY votes DESC LIMIT 5") # votes_count emas votes
+    cursor.execute("SELECT username, votes FROM candidates ORDER BY votes DESC LIMIT 5") 
     res = cursor.fetchall()
     conn.close()
     return res
@@ -117,7 +151,6 @@ def remove_channel(username):
     conn.commit()
     conn.close()
 
-# --- REKLAMA UCHUN YANGI QO'SHILGAN FUNKSIYA ---
 def get_all_user_ids():
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
