@@ -88,3 +88,34 @@ def get_total_users():
     return count
 
 init_db()
+def add_channel(username):
+    """Obuna kanalini bazaga qo'shish"""
+    if not username.startswith("@"):
+        username = "@" + username
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    try:
+        cursor.execute("INSERT OR IGNORE INTO channels (username) VALUES (?)", (username,))
+        conn.commit()
+        return True
+    except:
+        return False
+    finally:
+        conn.close()
+
+def get_channels():
+    """Barcha kanallarni olish"""
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT username FROM channels")
+    rows = cursor.fetchall()
+    conn.close()
+    return [row[0] for row in rows]
+
+def remove_channel(username):
+    """Kanalni o'chirish"""
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM channels WHERE username = ?", (username,))
+    conn.commit()
+    conn.close()
