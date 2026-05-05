@@ -3,6 +3,7 @@ import asyncio
 import logging
 from datetime import datetime
 
+
 from aiogram import Router, types, F, Bot
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
@@ -15,6 +16,8 @@ from database import (
     add_user, 
     ADMIN_ID, 
     get_total_users, 
+    update_candidate_post_id,
+    add_candidate_to_db,
     get_all_user_ids, 
     add_channel, 
     remove_channel, 
@@ -39,15 +42,19 @@ class AdminStates(StatesGroup):
 class AdminStates(StatesGroup):
     waiting_for_ad = State()
 
-# --- 1. BAZA FUNKSIYALARI ---
-def add_candidate_to_db(username):
+# --- 1. BAZA FUNKSIYALARI (Tuzatilgan variant) ---
+def add_candidate_to_db(username, chat_id):
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
     try:
-        cursor.execute("INSERT INTO candidates (username, votes) VALUES (?, ?)", (username, 0))
+        # Username va chat_id birga kelishi kerak
+        cursor.execute("INSERT INTO candidates (username, votes, chat_id) VALUES (?, ?, ?)", (username, 0, str(chat_id)))
         conn.commit()
         return True
     except sqlite3.IntegrityError:
+        return False
+    except Exception as e:
+        logging.error(f"Baza xatosi: {e}")
         return False
     finally:
         conn.close()
@@ -56,17 +63,11 @@ def get_all_candidates():
     conn = sqlite3.connect('bot_data.db')
     conn.row_factory = sqlite3.Row 
     cursor = conn.cursor()
-    cursor.execute("SELECT username, votes FROM candidates ORDER BY votes DESC")
+    # Faqat ovozlar soni bo'yicha saralaymiz
+    cursor.execute("SELECT username, votes, chat_id FROM candidates ORDER BY votes DESC")
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
-
-def update_candidate_post_id(username, post_id):
-    conn = sqlite3.connect('bot_data.db')
-    cursor = conn.cursor()
-    cursor.execute("UPDATE candidates SET post_id = ? WHERE username = ?", (post_id, username))
-    conn.commit()
-    conn.close()
 
 # --- 2. TEKSHIRUV FUNKSIYASI ---
 async def is_subscribed(bot, user_id):
@@ -117,45 +118,46 @@ async def start_contest_in_channel(message: types.Message):
     LAST_BATTLE_POST["message_id"] = battle_msg.message_id
 
 # --- 4. START VA MAJBURIY OBUNA ---
+# --- START: OVOZ BERISH QISMI ---
 @router.message(Command("start"))
 async def start_handler(message: types.Message, command: CommandObject):
     user_id = message.from_user.id
     add_user(user_id, message.from_user.username) 
 
-    if not await is_subscribed(message.bot, user_id):
-        args = command.args or "none"
-        sub_text = (
-            f"👋 <b>Assalomu alaykum!</b>\n\n"
-            f"Botimizdan foydalanish va konkurslarda qatnashish uchun "
-            f"kanalimizga obuna bo'lishingiz shart.\n\n"
-            f"📢 <b>Kanal:</b> {REQUIRED_CHANNEL}\n\n"
-            f"<i>Obuna bo'lgach, '✅ Tekshirish' tugmasini bosing.</i>"
-        )
-        return await message.answer(sub_text, reply_markup=sub_keyboard(REQUIRED_CHANNEL, args), parse_mode="HTML")
-
     args = command.args
     if args and args.startswith("vote_"):
-        candidate = args.replace("vote_", "")
+        # Majburiy obunani tekshirish
+        if not await is_subscribed(message.bot, user_id):
+            return await message.answer("Ovoz berish uchun avval kanalga a'zo bo'ling!", 
+                                       reply_markup=sub_keyboard(REQUIRED_CHANNEL, args))
+
+        candidate = "@" + args.replace("vote_", "")
         conn = sqlite3.connect('bot_data.db')
         cursor = conn.cursor()
+        
+        # Allaqachon ovoz berganmi?
         cursor.execute("SELECT * FROM votes WHERE user_id = ?", (user_id,))
         if cursor.fetchone():
             conn.close()
-            return await message.answer("🚫 <b>Kechirasiz!</b>\n\nSiz ushbu konkursda allaqachon bitta nomzodga ovoz berib bo'lgansiz!", parse_mode="HTML")
+            return await message.answer("🚫 Siz allaqachon ovoz bergansiz!")
 
+        # Ovozni hisoblash
         cursor.execute("INSERT INTO votes (user_id, candidate_username) VALUES (?, ?)", (user_id, candidate))
         cursor.execute("UPDATE candidates SET votes = votes + 1 WHERE username = ?", (candidate,))
-        conn.commit(); conn.close()
+        conn.commit()
+        conn.close()
         
-        await message.answer(f"✅ Tabriklaymiz! \n\n@{candidate} uchun ovozingiz muvaffaqiyatli qabul qilindi!")
-        
+        await message.answer(f"✅ {candidate} uchun ovozingiz qabul qilindi!")
+
+        # KANALDA BALLARNI YANGILASH
         if LAST_BATTLE_POST["message_id"]:
             candidates = get_all_candidates()
+            bot_me = await message.bot.get_me()
             try:
                 await message.bot.edit_message_reply_markup(
                     chat_id=LAST_BATTLE_POST["chat_id"],
                     message_id=LAST_BATTLE_POST["message_id"],
-                    reply_markup=get_battle_kb(candidates, (await message.bot.get_me()).username)
+                    reply_markup=get_battle_kb(candidates, bot_me.username)
                 )
             except: pass
         return
@@ -283,33 +285,37 @@ async def results_callback(callback: types.CallbackQuery):
             await callback.message.answer(top_txt, parse_mode="HTML")
         except: pass
 
+# --- OVOZLI BATL: QATNASHISH VA BALLARNI YANGILASH ---
 @router.callback_query(F.data == "join_contest")
 async def join_contest_handler(callback: types.CallbackQuery):
-    username = callback.from_user.username
+    user_username = callback.from_user.username
     
-    if not username:
-        return await callback.answer("Username o'rnating! ⚠️", show_alert=True)
+    if not user_username:
+        return await callback.answer("Username o'rnating! ⚠️ (Settings -> Username)", show_alert=True)
 
-    # 1. Bazaga qo'shish
-    added = add_candidate_to_db(f"@{username}", callback.message.chat.id)
+    username_with_at = f"@{user_username}"
+    # Hozirgi xabar (post) qaysi kanalda ekanini olish
+    current_chat_id = callback.message.chat.id
+    
+    # 1. Bazaga qo'shish (chat_id bilan birga)
+    added = add_candidate_to_db(username_with_at, current_chat_id)
     
     if added:
-        # 2. Bazadan yangilangan ishtirokchilar ro'yxatini olish
+        # 2. Yangi ro'yxatni olish
         candidates = get_all_candidates()
         bot_info = await callback.bot.get_me()
         
-        # 3. KANALDA REPLI MARKUPNI YANGILASH (Muhim joyi shu!)
+        # 3. KANALDA BALLARNI VA RO'YXATNI SRAZI YANGILASH
         try:
             await callback.message.edit_reply_markup(
                 reply_markup=get_battle_kb(candidates, bot_info.username)
             )
-            await callback.answer("Ro'yxatga qo'shildingiz! ✅", show_alert=True)
+            await callback.answer("Tabriklaymiz! Siz ro'yxatga qo'shildingiz va ballar yangilandi. ✅", show_alert=True)
         except Exception as e:
-            # Agar xabar o'zgarmagan bo'lsa xato bermasligi uchun
             logging.error(f"Yangilashda xato: {e}")
-            await callback.answer("Muvaffaqiyatli! 🚀", show_alert=True)
+            await callback.answer("Ro'yxatga qo'shildingiz! 🚀", show_alert=True)
     else:
-        await callback.answer("Siz allaqachon ro'yxatda borsiz! 😊", show_alert=True)
+        await callback.answer("Siz allaqachon ushbu konkursda ishtirok etyapsiz! 😊", show_alert=True)
 
 @router.callback_query(F.data == "join_new_battle")
 async def join_new_battle_handler(callback: types.CallbackQuery):
