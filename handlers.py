@@ -9,7 +9,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from keyboard import *
 
-# database.py dan kerakli funksiyalarni import qilish
+# database.py dan importlar
 from database import (
     add_user, ADMIN_ID, get_total_users, 
     get_all_user_ids, add_channel, remove_channel, get_channels
@@ -17,14 +17,15 @@ from database import (
 
 router = Router()
 REQUIRED_CHANNEL = "@TolibTokyo"
+# Bu o'zgaruvchi vaqtinchalik xabar ID sini ushlab turish uchun kerak
+LAST_BATTLE_POST = {"chat_id": None, "message_id": None}
 
-# --- HOLATLAR ---
 class AdminStates(StatesGroup):
     waiting_for_ad = State()
     waiting_for_battle_text = State()
     waiting_for_battle_channel = State()
 
-# --- 1. BAZA FUNKSIYALARI (Universal variant) ---
+# --- 1. BAZA FUNKSIYALARI ---
 def add_candidate_to_db(username, chat_id):
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
@@ -71,7 +72,8 @@ async def start_handler(message: types.Message, command: CommandObject):
         args = command.args or "none"
         sub_text = (
             f"👋 <b>Assalomu alaykum!</b>\n\n"
-            f"Botimizdan foydalanish uchun kanalimizga obuna bo'ling.\n\n"
+            f"Botimizdan foydalanish va konkurslarda qatnashish uchun "
+            f"kanalimizga obuna bo'lishingiz shart.\n\n"
             f"📢 <b>Kanal:</b> {REQUIRED_CHANNEL}\n\n"
             f"<i>Obuna bo'lgach, '✅ Tekshirish' tugmasini bosing.</i>"
         )
@@ -85,54 +87,66 @@ async def start_handler(message: types.Message, command: CommandObject):
         cursor.execute("SELECT * FROM votes WHERE user_id = ?", (user_id,))
         if cursor.fetchone():
             conn.close()
-            return await message.answer("🚫 Siz allaqachon ovoz berib bo'lgansiz!", parse_mode="HTML")
+            return await message.answer("🚫 <b>Kechirasiz!</b>\n\nSiz ushbu konkursda allaqachon bitta nomzodga ovoz berib bo'lgansiz!", parse_mode="HTML")
 
         cursor.execute("INSERT INTO votes (user_id, candidate_username) VALUES (?, ?)", (user_id, candidate))
         cursor.execute("UPDATE candidates SET votes = votes + 1 WHERE username = ?", (candidate,))
         conn.commit(); conn.close()
         
-        await message.answer(f"✅ @{candidate} uchun ovozingiz qabul qilindi!")
+        await message.answer(f"✅ Tabriklaymiz! \n\n@{candidate} uchun ovozingiz muvaffaqiyatli qabul qilindi!")
         return
 
     start_txt = (
         f"👋 Salom {message.from_user.first_name} \n\n"
-        f"🎡 <b>Baraban:</b> Ism yozib g'olib aniqlang!\n"
-        f"✌️ <b>Enik-Benik:</b> Tic-Tac-Toe (X-O) o'yini!\n"
-        f"🎤 <b>Ovozli Batl:</b> Konkurslar tashkil qiling!\n\n"
-        f"🚀 <b>Kerakli bo'limni tanlang:</b>"
+        f"Sizni botimizda ko'rib turganimizdan xursandmiz! Bu yerda siz quyidagi imkoniyatlarga egasiz:\n\n"
+        f"🎡 <b>Baraban:</b> Barabanga Ism Yozib G'olib Aniqlaysiz! Juda zo'r!\n"
+        f"✌️ <b>Enik-Benik:</b> Do'stlar bilan qiziqarli o'yinlar o'ynang!\n"
+        f"🎤 <b>Ovozli Batl:</b> O'z kanalingizda professional konkurslar tashkil qiling!\n\n"
+        f"🚀 <b>Pastdagi menyudan o'zingizga kerakli bo'limni tanlang:</b>"
     )
     await message.answer(start_txt, reply_markup=main_reply_menu(user_id, ADMIN_ID), parse_mode="HTML")
 
-# --- 4. O'YINLAR (BARABAN, ENIK-BENIK, VOICE) ---
+# --- 4. O'YINLAR ---
 @router.message(F.text == "🎡 Baraban o'yini")
 async def baraban_reply_btn(message: types.Message):
-    await message.answer("🎡 <b>Baraban o'yini:</b>", reply_markup=section_inline_kb(url="https://barabandev.netlify.app/"), parse_mode="HTML")
+    await message.answer(
+        "🎡 <b>Baraban o'yini</b> bo'limini tanladingiz.\n\nOmadingizni sinab ko'rish uchun pastdagi tugmani bosing:",
+        reply_markup=section_inline_kb(url="https://barabandev.netlify.app/"),
+        parse_mode="HTML"
+    )
 
 @router.message(F.text == "✌️ Enik-Benik")
 async def enik_benik_reply_btn(message: types.Message):
-    await message.answer("<b>✌️ Enik-Benik: Tic-Tac-Toe</b>", reply_markup=enik_benik_inline_kb(url="https://tictac-by-tolib.netlify.app/"), parse_mode="HTML")
+    await message.answer(
+        "<b>✌️ Enik-Benik o'yiniga xush kelibsiz!</b>\n\n"
+        "Bu yerda siz mantiqiy o'yinlar o'ynashingiz mumkin. "
+        "Hozircha bizda <b>Tic-Tac-Toe (X-O)</b> o'yini mavjud. 🚀\n\n"
+        "O'ynash uchun pastdagi tugmani bosing:",
+        reply_markup=enik_benik_inline_kb(url="https://tictac-by-tolib.netlify.app/"),
+        parse_mode="HTML"
+    )
 
 @router.message(F.text == "🎤 Ovozli Batl")
 async def voice_battle_reply_btn(message: types.Message):
     bot_info = await message.bot.get_me()
     guide_text = (
-        f"🎤 <b>Ovozli Batl qo'llanmasi:</b>\n\n"
-        f"1️⃣ Botni kanalga Admin qiling.\n"
-        f"2️⃣ <b>#konkursx</b> yoki <b>🚀 Yangi Battle</b> orqali boshlang.\n"
-        f"3️⃣ Har bir ovoz beruvchi {REQUIRED_CHANNEL} kanaliga a'zo bo'lishi shart!"
+        f"🎤 <b>Ovozli Batl (Konkurs) tashkil qilish bo'yicha to'liq qo'llanma:</b>\n\n"
+        f"1️⃣ <b>Botni kanalga qo'shish:</b> Botni o'z kanalingizga admin qiling.\n\n"
+        f"2️⃣ <b>Konkursni boshlash:</b> Bot admin bo'lgan kanalingizga <code>#konkursx</code> yoki ushbu bo'limdagi <b>🚀 Yangi Battle</b> tugmasini ishlating.\n\n"
+        f"3️⃣ <b>Muhim:</b> Har bir ovoz beruvchi sening kanalingga obuna bo'lishi shart!"
     )
     await message.answer(guide_text, reply_markup=voice_battle_kb(bot_info.username), parse_mode="HTML")
 
-# --- 5. YANGI BATTLE TIZIMI (UNIVERSAL) ---
+# --- 5. YANGI BATTLE TIZIMI ---
 @router.message(F.text == "🚀 Yangi Battle (Beta)")
 async def create_new_battle(message: types.Message, state: FSMContext):
-    await message.answer("📝 Battle uchun asosiy matnni kiriting:")
+    await message.answer("📝 Battle uchun asosiy matnni kiriting (Bu matn siz ko'rsatgan kanalda chiqadi):")
     await state.set_state(AdminStates.waiting_for_battle_text)
 
 @router.message(AdminStates.waiting_for_battle_text)
 async def process_b_text(message: types.Message, state: FSMContext):
     await state.update_data(b_text=message.text)
-    await message.answer("🆔 Kanal ID yoki @username kiriting:")
+    await message.answer("🆔 Kanal ID yoki @username kiriting (Masalan: @TolibTokyo):")
     await state.set_state(AdminStates.waiting_for_battle_channel)
 
 @router.message(AdminStates.waiting_for_battle_channel)
@@ -142,67 +156,81 @@ async def finalize_battle(message: types.Message, state: FSMContext):
     kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="✅ Battlega qatnashish", callback_data="join_new_battle")]])
     
     try:
-        await message.bot.send_message(chat_id=channel, text=data['b_text'], reply_markup=kb, parse_mode="HTML")
-        await message.answer(f"✅ Battle kanalga yuborildi!")
-    except:
-        await message.answer("❌ Xato! Bot kanalda admin emas.")
+        sent_msg = await message.bot.send_message(chat_id=channel, text=data['b_text'], reply_markup=kb, parse_mode="HTML")
+        # Global o'zgaruvchiga saqlaymiz, shunda keyingi ishtirokchilar "reply" qila oladi
+        LAST_BATTLE_POST["chat_id"] = sent_msg.chat.id
+        LAST_BATTLE_POST["message_id"] = sent_msg.message_id
+        await message.answer(f"✅ Battle kanalga muvaffaqiyatli yuborildi!")
+    except Exception as e:
+        await message.answer(f"❌ Xatolik: Bot ushbu kanalda admin emas yoki kanal nomi noto'g'ri.")
     await state.clear()
 
 @router.callback_query(F.data == "join_new_battle")
 async def join_new_battle_handler(callback: types.CallbackQuery):
     if not await is_subscribed(callback.bot, callback.from_user.id):
-        return await callback.answer("Avval kanalga obuna bo'ling!", show_alert=True)
+        return await callback.answer("Konkursda qatnashish uchun kanalga obuna bo'ling!", show_alert=True)
 
     username = callback.from_user.username or callback.from_user.first_name
-    participant_text = f"🏆 <b>BATTLE ISHTIROKCHISI:</b> @{username}\n\n📈 <b>UMUMIY BALL: 0</b>"
+    
+    # Ishtirokchi posti (Aynan o'sha asosiy postga REPLY qilib yuboradi)
+    participant_text = (
+        f"🏆 <b>BATTLE ISHTIROKCHISI:</b> @{username}\n\n"
+        f"❤️ Reaksiyalar: 0/100\n"
+        f"💬 Komentlar: 0/100\n"
+        f"⭐ Stars: 0\n\n"
+        f"📈 <b>UMUMIY BALL: 0</b>"
+    )
 
     try:
-        new_post = await callback.bot.send_message(chat_id=callback.message.chat.id, text=participant_text, parse_mode="HTML")
+        new_post = await callback.bot.send_message(
+            chat_id=callback.message.chat.id,
+            text=participant_text,
+            reply_to_message_id=callback.message.message_id, # REPLY qilish joyi
+            parse_mode="HTML"
+        )
+        
         if add_candidate_to_db(username, callback.message.chat.id):
             update_candidate_post_id(username, new_post.message_id)
-            await callback.answer("Qo'shildingiz!", show_alert=True)
+            await callback.answer("Muvaffaqiyatli qo'shildingiz!", show_alert=True)
         else:
             await callback.answer("Siz allaqachon ro'yxatdasiz!", show_alert=True)
-    except:
-        await callback.answer("Xatolik!", show_alert=True)
+    except Exception as e:
+        await callback.answer("Xatolik! Bot admin ekanligini tekshiring.", show_alert=True)
 
 # --- 6. AVTO-YANGILASH MOTORU ---
 async def auto_update_scores(bot: Bot):
     while True:
         try:
-            await asyncio.sleep(300)
+            await asyncio.sleep(300) 
             candidates = get_all_candidates()
             for c in candidates:
                 if not c['chat_id'] or not c['post_id']: continue
                 
                 updated_text = (
                     f"🏆 <b>BATTLE ISHTIROKCHISI:</b> @{c['username']}\n\n"
-                    f"📊 <b>Ballar holati:</b>\n✅ Ovozlar: {c['votes']}\n"
+                    f"📊 <b>Ballar holati:</b>\n"
+                    f"✅ Ovozlar: {c['votes']}\n"
                     f"📈 <b>UMUMIY BALL: {c['votes']}</b>\n"
-                    f"──────────────────\n🕒 {datetime.now().strftime('%H:%M')}"
+                    f"──────────────────\n"
+                    f"🕒 Yangilandi: {datetime.now().strftime('%H:%M')}"
                 )
                 try:
-                    await bot.edit_message_text(chat_id=c['chat_id'], message_id=c['post_id'], text=updated_text, parse_mode="HTML")
+                    await bot.edit_message_text(
+                        chat_id=c['chat_id'],
+                        message_id=c['post_id'],
+                        text=updated_text,
+                        parse_mode="HTML"
+                    )
                 except: continue
-        except Exception as e:
+        except:
             await asyncio.sleep(10)
 
-# --- ADMIN PANEL VA CALLBACKLAR ---
+# --- ADMIN PANEL ---
 @router.message(F.text == "⚙️ Admin Panel")
 async def admin_reply_btn(message: types.Message):
     if str(message.from_user.id) != str(ADMIN_ID): return
-    await message.answer("<b>⚙️ Admin Panel</b>", reply_markup=admin_menu_kb(), parse_mode="HTML")
-
-@router.callback_query(F.data.startswith("check_sub_"))
-async def check_sub(callback: types.CallbackQuery):
-    if await is_subscribed(callback.bot, callback.from_user.id):
-        await callback.message.delete()
-        await callback.message.answer("✅ Obuna tasdiqlandi!", reply_markup=main_reply_menu(callback.from_user.id, ADMIN_ID))
-    else:
-        await callback.answer("❌ Obuna bo'lmagansiz!", show_alert=True)
-
-@router.callback_query(F.data == "results")
-async def results_callback(callback: types.CallbackQuery):
-    candidates = get_all_candidates()
-    res_txt = "📊 Natijalar:\n\n" + "\n".join([f"{i+1}. @{c['username']} — {c['votes']}" for i, c in enumerate(candidates)])
-    await callback.answer(res_txt, show_alert=True)
+    await message.answer(
+        "<b>⚙️ Admin Paneliga xush kelibsiz!</b>\n\nBu yerdan bot statistikasini ko'rishingiz mumkin.",
+        reply_markup=admin_menu_kb(),
+        parse_mode="HTML"
+    )
