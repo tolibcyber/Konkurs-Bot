@@ -216,33 +216,33 @@ async def admin_reply_btn(message: types.Message):
         parse_mode="HTML"
     )
 
-@router.callback_query(F.data.startswith("refresh_"))
-async def refresh_score(callback: types.CallbackQuery):
-    candidate_username = callback.data.replace("refresh_", "")
+# @router.callback_query(F.data.startswith("refresh_"))
+# async def refresh_score(callback: types.CallbackQuery):
+#     candidate_username = callback.data.replace("refresh_", "")
     
-    # Bazadan oxirgi ballarni olamiz
-    conn = sqlite3.connect('bot_data.db')
-    cursor = conn.cursor()
-    cursor.execute("SELECT votes FROM candidates WHERE username = ?", (candidate_username,))
-    res = cursor.fetchone()
-    conn.close()
+#     # Bazadan oxirgi ballarni olamiz
+#     conn = sqlite3.connect('bot_data.db')
+#     cursor = conn.cursor()
+#     cursor.execute("SELECT votes FROM candidates WHERE username = ?", (candidate_username,))
+#     res = cursor.fetchone()
+#     conn.close()
     
-    if res:
-        votes = res[0]
-        updated_text = (
-            f"🏆 <b>BATTLE ISHTIROKCHISI:</b> @{candidate_username}\n\n"
-            f"❤️ Reaksiyalar: 0/100\n"
-            f"💬 Komentlar: 0/100\n"
-            f"⭐ Stars: 0\n\n"
-            f"📈 <b>UMUMIY BALL: {votes}</b>\n"
-            f"──────────────────\n"
-            f"🕒 Oxirgi yangilanish: {datetime.now().strftime('%H:%M:%S')}"
-        )
+#     if res:
+#         votes = res[0]
+#         updated_text = (
+#             f"🏆 <b>BATTLE ISHTIROKCHISI:</b> @{candidate_username}\n\n"
+#             f"❤️ Reaksiyalar: 0/100\n"
+#             f"💬 Komentlar: 0/100\n"
+#             f"⭐ Stars: 0\n\n"
+#             f"📈 <b>UMUMIY BALL: {votes}</b>\n"
+#             f"──────────────────\n"
+#             f"🕒 Oxirgi yangilanish: {datetime.now().strftime('%H:%M:%S')}"
+#         )
         
-        try:
-            await callback.message.edit_text(text=updated_text, reply_markup=callback.message.reply_markup, parse_mode="HTML")
-            await callback.answer("Ballar yangilandi! ✅")
-        except:
-            await callback.answer("Ballar hali o'zgarmagan. ⏳")
-    else:
-        await callback.answer("Ma'lumot topilmadi. ❌")
+#         try:
+#             await callback.message.edit_text(text=updated_text, reply_markup=callback.message.reply_markup, parse_mode="HTML")
+#             await callback.answer("Ballar yangilandi! ✅")
+#         except:
+#             await callback.answer("Ballar hali o'zgarmagan. ⏳")
+#     else:
+#         await callback.answer("Ma'lumot topilmadi. ❌")
