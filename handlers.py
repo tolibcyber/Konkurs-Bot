@@ -172,7 +172,11 @@ async def join_new_battle_handler(callback: types.CallbackQuery):
 
     username = callback.from_user.username or callback.from_user.first_name
     
-    # Ishtirokchi posti (Aynan o'sha asosiy postga REPLY qilib yuboradi)
+    # 1. Yangilash tugmasini yaratamiz
+    refresh_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔄 Yangilash", callback_data=f"refresh_{username}")]
+    ])
+    
     participant_text = (
         f"🏆 <b>BATTLE ISHTIROKCHISI:</b> @{username}\n\n"
         f"❤️ Reaksiyalar: 0/100\n"
@@ -182,48 +186,25 @@ async def join_new_battle_handler(callback: types.CallbackQuery):
     )
 
     try:
+        # 2. Xabarni yuborayotganda reply_markup qo'shamiz
         new_post = await callback.bot.send_message(
             chat_id=callback.message.chat.id,
             text=participant_text,
-            reply_to_message_id=callback.message.message_id, # REPLY qilish joyi
+            reply_to_message_id=callback.message.message_id, 
+            reply_markup=refresh_kb, # SHU YERDA TUGMA QO'SHILDI
             parse_mode="HTML"
         )
         
+        # 3. Bazaga saqlash (chat_id bilan)
         if add_candidate_to_db(username, callback.message.chat.id):
             update_candidate_post_id(username, new_post.message_id)
             await callback.answer("Muvaffaqiyatli qo'shildingiz!", show_alert=True)
         else:
             await callback.answer("Siz allaqachon ro'yxatdasiz!", show_alert=True)
+            
     except Exception as e:
         await callback.answer("Xatolik! Bot admin ekanligini tekshiring.", show_alert=True)
 
-# --- 6. AVTO-YANGILASH MOTORU ---
-async def auto_update_scores(bot: Bot):
-    while True:
-        try:
-            await asyncio.sleep(30) 
-            candidates = get_all_candidates()
-            for c in candidates:
-                if not c['chat_id'] or not c['post_id']: continue
-                
-                updated_text = (
-                    f"🏆 <b>BATTLE ISHTIROKCHISI:</b> @{c['username']}\n\n"
-                    f"📊 <b>Ballar holati:</b>\n"
-                    f"✅ Ovozlar: {c['votes']}\n"
-                    f"📈 <b>UMUMIY BALL: {c['votes']}</b>\n"
-                    f"──────────────────\n"
-                    f"🕒 Yangilandi: {datetime.now().strftime('%H:%M')}"
-                )
-                try:
-                    await bot.edit_message_text(
-                        chat_id=c['chat_id'],
-                        message_id=c['post_id'],
-                        text=updated_text,
-                        parse_mode="HTML"
-                    )
-                except: continue
-        except:
-            await asyncio.sleep(10)
 
 # --- ADMIN PANEL ---
 @router.message(F.text == "⚙️ Admin Panel")
@@ -234,3 +215,34 @@ async def admin_reply_btn(message: types.Message):
         reply_markup=admin_menu_kb(),
         parse_mode="HTML"
     )
+
+@router.callback_query(F.data.startswith("refresh_"))
+async def refresh_score(callback: types.CallbackQuery):
+    candidate_username = callback.data.replace("refresh_", "")
+    
+    # Bazadan oxirgi ballarni olamiz
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT votes FROM candidates WHERE username = ?", (candidate_username,))
+    res = cursor.fetchone()
+    conn.close()
+    
+    if res:
+        votes = res[0]
+        updated_text = (
+            f"🏆 <b>BATTLE ISHTIROKCHISI:</b> @{candidate_username}\n\n"
+            f"❤️ Reaksiyalar: 0/100\n"
+            f"💬 Komentlar: 0/100\n"
+            f"⭐ Stars: 0\n\n"
+            f"📈 <b>UMUMIY BALL: {votes}</b>\n"
+            f"──────────────────\n"
+            f"🕒 Oxirgi yangilanish: {datetime.now().strftime('%H:%M:%S')}"
+        )
+        
+        try:
+            await callback.message.edit_text(text=updated_text, reply_markup=callback.message.reply_markup, parse_mode="HTML")
+            await callback.answer("Ballar yangilandi! ✅")
+        except:
+            await callback.answer("Ballar hali o'zgarmagan. ⏳")
+    else:
+        await callback.answer("Ma'lumot topilmadi. ❌")
