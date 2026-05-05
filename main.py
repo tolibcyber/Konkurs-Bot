@@ -4,6 +4,7 @@ import os  # Muhit o'zgaruvchilari (token) uchun kerak
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from handlers import router, auto_update_scores # auto_update_scores qo'shildi
+asyncio.create_task(auto_update_scores(Bot))
 from database import init_db
 
 # Loglarni yoqamiz (Xato bo'lsa terminalda ko'rinadi)
