@@ -1,22 +1,29 @@
 import sqlite3
 import asyncio
-from aiogram import Router, types, F
+import logging
+from datetime import datetime
+
+from aiogram import Router, types, F, Bot
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from datetime import datetime
-import asyncio
-from aiogram import Bot
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-import logging
-import asyncio
-from datetime import datetime
-# ... qolgan importlar
+
+# O'zing yaratgan fayllardan importlar
 from keyboard import *
 from database import (
-    add_user, ADMIN_ID, get_total_users, 
-    get_all_user_ids, add_channel, remove_channel, get_channels
+    add_user, 
+    ADMIN_ID, 
+    get_total_users, 
+    get_all_user_ids, 
+    add_channel, 
+    remove_channel, 
+    get_channels,
+    init_db  # Agar kerak bo'lsa
 )
+
+# Routerni e'lon qilish
+router = Router()
 
 router = Router()
 LAST_BATTLE_POST = {"chat_id": None, "message_id": None}
