@@ -279,7 +279,7 @@ async def results_callback(callback: types.CallbackQuery):
         top_5 = candidates[:5]
         top_txt = "🔥 <b>TOP 5 G'oliblar</b>\n\n"
         for i, c in enumerate(top_5, 1):
-            top_txt += f"{i}️⃣ @{c['username']} — {c['votes']} ta ovoz\n"
+            top_txt += f"{i️⃣} @{c['username']} — {c['votes']} ta ovoz\n"
         top_txt += "\n🏆 <i>G'oliblik sari olg'a!</i>"
         try:
             await callback.message.answer(top_txt, parse_mode="HTML")
