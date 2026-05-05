@@ -314,6 +314,13 @@ async def join_new_battle_handler(callback: types.CallbackQuery):
     else:
         await callback.answer("Siz allaqachon ro'yxatdasiz!", show_alert=True)
 
+# 1. Avval Klassni yozamiz (Funksiyalardan tepada tursin)
+class AdminStates(StatesGroup):
+    waiting_for_ads = State()
+    waiting_for_battle_text = State() # Mana bu to'g'ri joyi
+    waiting_for_battle_channel = State() # Buni ham qo'shib qo'y, kanalni so'rash uchun kerak
+
+# 2. Keyin Handler funksiyasi keladi
 @router.callback_query(F.data == "admin_stats")
 async def admin_stats_callback(callback: types.CallbackQuery):
     total_users = get_total_users()
@@ -321,7 +328,7 @@ async def admin_stats_callback(callback: types.CallbackQuery):
         text=f"<b>📊 Bot Statistikasi:</b>\n\n👥 Umumiy foydalanuvchilar: <b>{total_users} ta</b>",
         reply_markup=back_to_main_kb(),
         parse_mode="HTML"
-    )
+    ) # Qavs bu yerda yopilishi kerak!
 
 @router.message(F.text == "🚀 Yangi Battle (Beta)")
 async def create_new_battle(message: types.Message, state: FSMContext):
