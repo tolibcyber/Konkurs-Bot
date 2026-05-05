@@ -4,6 +4,10 @@ from aiogram import Router, types, F
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from datetime import datetime
+import asyncio
+from aiogram import Bot
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from keyboard import *
 from database import (
     add_user, ADMIN_ID, get_total_users, 
@@ -13,6 +17,12 @@ from database import (
 router = Router()
 LAST_BATTLE_POST = {"chat_id": None, "message_id": None}
 REQUIRED_CHANNEL = "@TolibTokyo"
+
+class AdminStates(StatesGroup):
+    waiting_for_ad = State()
+    # Shularni davomidan qo'sh:
+    waiting_for_battle_text = State()
+    waiting_for_battle_channel = State()
 
 # --- ADMIN PANEL UCHUN HOLATLAR ---
 class AdminStates(StatesGroup):
@@ -39,6 +49,13 @@ def get_all_candidates():
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+def update_candidate_post_id(username, post_id):
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute("UPDATE candidates SET post_id = ? WHERE username = ?", (post_id, username))
+    conn.commit()
+    conn.close()
 
 # --- 2. TEKSHIRUV FUNKSIYASI ---
 async def is_subscribed(bot, user_id):
@@ -274,6 +291,29 @@ async def join_callback(callback: types.CallbackQuery):
     else:
         await callback.answer("Siz allaqachon ro'yxatdasiz!", show_alert=True)
 
+@router.callback_query(F.data == "join_new_battle")
+async def join_new_battle_handler(callback: types.CallbackQuery):
+    if not await is_subscribed(callback.bot, callback.from_user.id):
+        return await callback.answer("Avval kanalga obuna bo'ling!", show_alert=True)
+
+    username = callback.from_user.username or callback.from_user.first_name
+    
+    # Ishtirokchi posti (Reply qilib)
+    participant_text = f"🏆 <b>BATTLE ISHTIROKCHISI:</b> @{username}\n\n❤️ Reaksiyalar: 0/100\n💬 Komentlar: 0/100\n⭐ Stars: 0\n\n📈 <b>UMUMIY BALL: 0</b>"
+
+    new_post = await callback.bot.send_message(
+        chat_id=callback.message.chat.id,
+        text=participant_text,
+        reply_to_message_id=LAST_BATTLE_POST["message_id"],
+        parse_mode="HTML"
+    )
+    
+    if add_candidate_to_db(username):
+        update_candidate_post_id(username, new_post.message_id)
+        await callback.answer("Qo'shildingiz!", show_alert=True)
+    else:
+        await callback.answer("Siz allaqachon ro'yxatdasiz!", show_alert=True)
+
 @router.callback_query(F.data == "admin_stats")
 async def admin_stats_callback(callback: types.CallbackQuery):
     total_users = get_total_users()
@@ -282,6 +322,37 @@ async def admin_stats_callback(callback: types.CallbackQuery):
         reply_markup=back_to_main_kb(),
         parse_mode="HTML"
     )
+
+@router.message(F.text == "🚀 Yangi Battle (Beta)")
+async def create_new_battle(message: types.Message, state: FSMContext):
+    # Bu tugmani hamma bosa oladi, lekin faqat admin boshqara oladi
+    if str(message.from_user.id) == str(ADMIN_ID):
+        await message.answer("📝 Battle uchun asosiy matnni kiriting (Kanalda chiqadi):")
+        await state.set_state(AdminStates.waiting_for_battle_text)
+    else:
+        await message.answer("Siz ham o'z kanalingizda shunday battle o'tkazmoqchimisiz? Botni kanalga admin qiling va #battle deb yozing!")
+
+@router.message(AdminStates.waiting_for_battle_text)
+async def process_b_text(message: types.Message, state: FSMContext):
+    await state.update_data(b_text=message.text)
+    await message.answer("🆔 Kanal ID yoki @username kiriting (Masalan: @TolibTokyo):")
+    await state.set_state(AdminStates.waiting_for_battle_channel)
+
+@router.message(AdminStates.waiting_for_battle_channel)
+async def finalize_battle(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    channel = message.text
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="✅ Battlega qatnashish", callback_data="join_new_battle")]])
+    
+    sent_msg = await message.bot.send_message(chat_id=channel, text=data['b_text'], reply_markup=kb, parse_mode="HTML")
+    LAST_BATTLE_POST["chat_id"] = sent_msg.chat.id
+    LAST_BATTLE_POST["message_id"] = sent_msg.message_id
+    
+    await message.answer(f"✅ Battle kanalga yuborildi!")
+    await state.clear()
+
+LAST_BATTLE_POST = {"chat_id": None, "message_id": None}
+# Bu o'zgarmaydi, lekin pastdagi funksiyalarda ishlatamiz.
 
 @router.callback_query(F.data == "back_to_main")
 async def back_to_main_handler(callback: types.CallbackQuery):
@@ -300,3 +371,52 @@ async def back_to_main_handler(callback: types.CallbackQuery):
     except:
         await callback.message.answer(start_txt, reply_markup=main_reply_menu(user_id, ADMIN_ID), parse_mode="HTML")
         await callback.answer()
+
+async def auto_update_scores(bot: Bot):
+    while True:
+        await asyncio.sleep(300) # 5 minut kutish (server nagruzka bo'lmasligi uchun)
+        
+        if not LAST_BATTLE_POST["chat_id"]:
+            continue
+            
+        # Bazadan hamma nomzodlarni olamiz
+        candidates = get_all_candidates()
+        
+        for c in candidates:
+            # Agar ishtirokchining post_id si bo'lmasa, uni o'tkazib yuboramiz
+            if not c.get('post_id'):
+                continue
+            
+            # BALLARNI HISOBLASH MANTIQI:
+            # Reaksiyalar: har biri 1 ball (max 100)
+            # Kommentlar: har biri 2 ball (max 100 ta user) - buni keyingi bosqichda ulaymiz
+            # Stars: har biri 5 ball
+            
+            reaksiyalar = min(c.get('votes', 0), 100) # Hozircha votes orqali
+            komentlar = 0 # Kelajakda bazadan sanaladi
+            stars = 0
+            
+            jami_ball = reaksiyalar + (komentlar * 2) + (stars * 5)
+
+            updated_text = (
+                f"🏆 <b>BATTLE ISHTIROKCHISI:</b> @{c['username']}\n\n"
+                f"📊 <b>Ballar taqsimoti:</b>\n"
+                f"❤️ Reaksiyalar: {reaksiyalar} / 100\n"
+                f"💬 Komentlar: {komentlar} / 100\n"
+                f"⭐ Stars: {stars}\n\n"
+                f"📈 <b>UMUMIY BALL: {jami_ball}</b>\n"
+                f"──────────────────\n"
+                f"🕒 Oxirgi yangilanish: {datetime.now().strftime('%H:%M')}"
+            )
+            
+            try:
+                # Xabarni yangilash
+                await bot.edit_message_text(
+                    chat_id=LAST_BATTLE_POST["chat_id"],
+                    message_id=c['post_id'],
+                    text=updated_text,
+                    parse_mode="HTML"
+                )
+            except Exception as e:
+                # Agar xabar o'chirilgan bo'lsa yoki o'zgarish bo'lmasa xato bermasligi uchun
+                continue
