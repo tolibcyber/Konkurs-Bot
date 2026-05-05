@@ -50,7 +50,7 @@ def join_new_battle_kb():
 def get_battle_kb(candidates, bot_username):
     buttons = []
     
-    # Sening ko'k rangli fon effekting o'z joyida
+    # Ishtirokchilar ro'yxati
     for cand in candidates:
         vote_link = f"https://t.me/{bot_username}?start=vote_{cand['username']}"
         buttons.append([InlineKeyboardButton(
@@ -58,10 +58,10 @@ def get_battle_kb(candidates, bot_username):
             url=vote_link
         )])
     
-    # Sening yashil rangli fon effekting o'z joyida
+    # MUHIM: callback_data endi handlers.py dagi bilan bir xil!
     buttons.append([InlineKeyboardButton(
         text="🏆 KONKURSGA QO'SHILISH ➕", 
-        callback_data="join_contest"
+        callback_data="join_new_battle"  # <--- Shu joyini o'zgartirdim
     )])
     
     # Natijalar
