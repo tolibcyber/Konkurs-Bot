@@ -47,10 +47,19 @@ def add_candidate_to_db(username, chat_id):
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
     try:
-        cursor.execute("INSERT INTO candidates (username, votes, chat_id) VALUES (?, 0, ?)", (username, str(chat_id)))
+        # 'username' PRIMARY KEY bo'lsa, bitta odamni ikki marta qo'shish xato beradi
+        # Shuning uchun INSERT OR IGNORE yoki try-except ishlatamiz
+        cursor.execute(
+            "INSERT INTO candidates (username, votes, chat_id) VALUES (?, 0, ?)", 
+            (username, str(chat_id))
+        )
         conn.commit()
         return True
-    except:
+    except sqlite3.IntegrityError:
+        # Foydalanuvchi allaqachon mavjud bo'lsa shunchaki False qaytaradi
+        return False
+    except Exception as e:
+        print(f"Baza xatosi: {e}")
         return False
     finally:
         conn.close()
