@@ -1,23 +1,24 @@
 import asyncio
 import logging
-import os  # Muhit o'zgaruvchilari (token) uchun kerak
+import os
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
-from handlers import router, auto_update_scores 
+# auto_update_scores bu yerdan olib tashlandi
+from handlers import router 
 from database import init_db
 
-# Loglarni yoqamiz (Xato bo'lsa terminalda ko'rinadi)
+# Loglarni yoqamiz
 logging.basicConfig(level=logging.INFO)
 
 async def main():
     # 1. Ma'lumotlar bazasini ishga tushirish
     init_db()
 
-    # 2. Tokenni Render sozlamalaridan olish
+    # 2. Tokenni muhit o'zgaruvchilaridan olish
     TOKEN = os.getenv("BOT_TOKEN")
     
     if not TOKEN:
-        logging.error("XATO: BOT_TOKEN topilmadi! Render sozlamalarini tekshiring.")
+        logging.error("XATO: BOT_TOKEN topilmadi! Sozlamalarni tekshiring.")
         return
 
     # Bot va Dispatcher ob'ektlarini yaratish
@@ -27,11 +28,9 @@ async def main():
     # 3. Routerni ulash
     dp.include_router(router)
 
-    # --- YANGI QISM: 5 MINUTLIK MOTORNI ISHGA TUSHIRISH ---
-    # Bu qator bot polling boshlanishi bilan fonda ballarni yangilashni boshlaydi.
-    # Uni aynan shu yerda (main ichida) chaqirish shart!
-    asyncio.create_task(auto_update_scores(bot))
-    # ---------------------------------------------------
+    # --- MOTOR OLIB TASHLANDI ---
+    # Endi boting ortiqcha yuklama bilan ishlamaydi
+    # ----------------------------
 
     # 4. Tozalash (Bot o'chiq turganda kelgan xabarlarni o'chirib yuboradi)
     await bot.delete_webhook(drop_pending_updates=True)
