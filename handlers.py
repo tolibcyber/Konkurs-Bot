@@ -478,3 +478,26 @@ def add_candidate_to_db(username, chat_id):
         return False
     finally:
         conn.close()
+
+@router.message(F.text == "🚀 Tekin Nakrutka")
+async def free_boost_handler(message: types.Message):
+    # Bu yerda foydalanuvchiga maqsadni tushuntiramiz
+    text = (
+        "<b>🚀 Tekin Nakrutka bo'limi!</b>\n\n"
+        "Do'stlar, bu bo'lim hali tayyorlanmoqda. Botimiz foydalanuvchilari soni "
+        "<b>1000 taga</b> yetishi bilan ushbu xizmat mutlaqo tekin ishga tushadi! 😍\n\n"
+        "Hozirda 29 ta foydalanuvchimiz bor. Botni do'stlaringizga ulashing va "
+        "imkoniyatni tezroq oching! ✨"
+    )
+    await message.answer(text, parse_mode="HTML")
+
+@router.message(F.text == "🛠 Xizmatlar / Qollab-quvvatlash")
+async def support_handler(message: types.Message):
+    text = (
+        "<b>🛠 Bizning Xizmatlar:</b>\n"
+        "• Bot yaratish xizmati\n"
+        "• Kanallarni reklama qilish\n"
+        "• Texnik yordam\n\n"
+        "Savollaringiz bo'lsa, adminga murojaat qiling: @Sening_Username"
+    )
+    await message.answer(text, parse_mode="HTML")
