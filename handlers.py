@@ -26,7 +26,6 @@ from database import (
 )
 
 # Routerni e'lon qilish
-router = Router()
 
 router = Router()
 LAST_BATTLE_POST = {"chat_id": None, "message_id": None}
@@ -268,34 +267,46 @@ async def results_callback(callback: types.CallbackQuery):
     if not candidates:
         return await callback.answer("Hozircha nomzodlar yo'q!", show_alert=True)
     
-    # 1. Hammaga chiqadigan alert xabari
+    # 1. Hammaga chiqadigan alert (Shaxsiy xabarnoma)
     res_txt = "📊 Konkurs natijalari:\n\n"
     for i, c in enumerate(candidates, 1):
-        # Bu yerda @ qo'shmaymiz, chunki bazada @ bilan saqlangan
         res_txt += f"{i}. {c['username']} — {c['votes']} ovoz\n"
     
     await callback.answer(res_txt, show_alert=True)
 
-    # 2. Kanal egasi yoki Admin bosganda kanalga yuborish
+    # 2. Kanalga post chiqarish qismini to'g'irlaymiz
     user_id = callback.from_user.id
-    user_status = await callback.bot.get_chat_member(chat_id=callback.message.chat.id, user_id=user_id)
-    
-    # Tekshiruv: Agar u asosiy ADMIN bo'lsa YOKI kanalda admin bo'lsa
-    if str(user_id) == str(ADMIN_ID) or user_status.status in ["administrator", "creator"]:
-        top_5 = candidates[:5]
-        top_txt = "🔥 <b>TOP 5 G'oliblar</b>\n\n"
+    chat_id = callback.message.chat.id
+
+    # Agarda tugma shaxsiyda (lichkada) bosilsa, kanalga natija tashlamasligi kerak
+    if callback.message.chat.type not in ["channel", "group", "supergroup"]:
+        return
+
+    try:
+        # Foydalanuvchining statusini tekshiramiz
+        user_status = await callback.bot.get_chat_member(chat_id=chat_id, user_id=user_id)
         
-        for i, c in enumerate(top_5, 1):
-            # Bazadagi username @ bilan bo'lsa, to'g'ri chiqadi
-            top_txt += f"{i}️⃣ {c['username']} — {c['votes']} ta ovoz\n"
-        
-        top_txt += "\n🏆 <i>G'oliblik sari olg'a!</i>"
-        
-        try:
-            # Kanalga yuborish
+        # TEKSHIRUV: Asosiy admin yoki kanal admini/egasi bo'lsa
+        is_admin = (
+            str(user_id) == str(ADMIN_ID) or 
+            user_status.status in ["administrator", "creator"]
+        )
+
+        if is_admin:
+            top_5 = candidates[:5]
+            top_txt = "🔥 <b>TOP 5 G'oliblar</b>\n\n"
+            
+            for i, c in enumerate(top_5, 1):
+                top_txt += f"{i}️⃣ {c['username']} — {c['votes']} ta ovoz\n"
+            
+            top_txt += "\n🏆 <i>G'oliblik sari olg'a!</i>"
+            
+            # Xabarni aynan o'sha kanalga yuborish
             await callback.message.answer(top_txt, parse_mode="HTML")
-        except Exception as e:
-            logging.error(f"Kanalga natijani yuborishda xato: {e}")
+            
+    except Exception as e:
+        # Foydalanuvchi botni bloklagan bo'lsa yoki huquq yetmasa xato bermaydi
+        logging.error(f"Natijani tekshirishda xato: {e}")
 
 # --- OVOZLI BATL: QATNASHISH VA BALLARNI YANGILASH ---
 @router.callback_query(F.data == "join_contest")
@@ -306,28 +317,26 @@ async def join_contest_handler(callback: types.CallbackQuery):
         return await callback.answer("Username o'rnating! ⚠️ (Settings -> Username)", show_alert=True)
 
     username_with_at = f"@{user_username}"
-    # Hozirgi xabar (post) qaysi kanalda ekanini olish
     current_chat_id = callback.message.chat.id
     
-    # 1. Bazaga qo'shish (chat_id bilan birga)
+    # Bazaga qo'shishga harakat qilamiz
     added = add_candidate_to_db(username_with_at, current_chat_id)
     
     if added:
-        # 2. Yangi ro'yxatni olish
+        # Yangi qo'shilgan bo'lsa ro'yxatni yangilaymiz
         candidates = get_all_candidates()
         bot_info = await callback.bot.get_me()
         
-        # 3. KANALDA BALLARNI VA RO'YXATNI SRAZI YANGILASH
         try:
             await callback.message.edit_reply_markup(
                 reply_markup=get_battle_kb(candidates, bot_info.username)
             )
-            await callback.answer("Tabriklaymiz! Siz ro'yxatga qo'shildingiz va ballar yangilandi. ✅", show_alert=True)
-        except Exception as e:
-            logging.error(f"Yangilashda xato: {e}")
+            await callback.answer("Tabriklaymiz! Ro'yxatga qo'shildingiz. ✅", show_alert=True)
+        except:
             await callback.answer("Ro'yxatga qo'shildingiz! 🚀", show_alert=True)
     else:
-        await callback.answer("Siz allaqachon ushbu konkursda ishtirok etyapsiz! 😊", show_alert=True)
+        # AGAR BAZADA BO'LSA, SHU XABAR CHIQADI:
+        await callback.answer("Siz allaqachon ushbu konkursda ishtirok etyapsiz! 🚫", show_alert=True)
 
 @router.callback_query(F.data == "join_new_battle")
 async def join_new_battle_handler(callback: types.CallbackQuery):
@@ -392,7 +401,7 @@ async def create_new_battle(message: types.Message, state: FSMContext):
     # Hamma foydalana oladi
     await message.answer(
         "<b>Yangi Battle yaratish bo'limi</b> 🚀\n\n"
-        "1️⃣ Avval battle uchun asosiy matnni yuboring (masalan: 'Kim chiroyli rasm chizadi?'):\n\n"
+        "1️⃣ Avval battle uchun asosiy matnni yuboring (masalan: 'Battle Boshlandi Yutuq Gift '):\n\n"
         "<i>Bekor qilish uchun /cancel yuboring.</i>",
         parse_mode="HTML"
     )
