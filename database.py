@@ -7,14 +7,13 @@ def init_db():
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
     
-    # 1. Foydalanuvchilar jadvali
+    # 1. Foydalanuvchilar
     cursor.execute('''CREATE TABLE IF NOT EXISTS users (
         user_id INTEGER PRIMARY KEY, 
         username TEXT, 
         joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
-    # 2. Nomzodlar (Ishtirokchilar) jadvali
-    # PRIMARY KEY sifatida (username, chat_id) birikmasini qoldirdik
+    # 2. Nomzodlar (chat_id va post_id qo'shilgan)
     cursor.execute('''CREATE TABLE IF NOT EXISTS candidates (
         username TEXT, 
         chat_id TEXT,
@@ -22,20 +21,14 @@ def init_db():
         post_id INTEGER DEFAULT 0,
         PRIMARY KEY (username, chat_id))''') 
     
-    # 3. Ovozlar jadvali (Ovozli batl uchun)
+    # 3. Ovozlar
     cursor.execute('''CREATE TABLE IF NOT EXISTS votes (
-        user_id INTEGER, 
+        user_id INTEGER PRIMARY KEY, 
         candidate_username TEXT)''')
     
-    # 4. Obuna kanallari jadvali
+    # 4. Kanallar
     cursor.execute('''CREATE TABLE IF NOT EXISTS channels (
         username TEXT PRIMARY KEY)''')
-    
-    # 5. Kommentariyalarni sanash jadvali (Yangi Battle uchun)
-    cursor.execute('''CREATE TABLE IF NOT EXISTS commenters (
-        post_id INTEGER, 
-        user_id INTEGER, 
-        UNIQUE(post_id, user_id))''')
     
     # Standart kanalni qo'shish
     cursor.execute("INSERT OR IGNORE INTO channels (username) VALUES ('@TolibTokyo')")
@@ -43,7 +36,6 @@ def init_db():
     conn.commit()
     conn.close()
 
-# --- FOYDALANUVCHILAR BILAN ISHLASH ---
 def add_user(user_id, username):
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
@@ -51,27 +43,12 @@ def add_user(user_id, username):
     conn.commit()
     conn.close()
 
-def get_all_user_ids():
-    conn = sqlite3.connect('bot_data.db')
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id FROM users")
-    ids = [row[0] for row in cursor.fetchall()]
-    conn.close()
-    return ids
-
-def get_total_users():
-    conn = sqlite3.connect('bot_data.db')
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM users")
-    count = cursor.fetchone()[0]
-    conn.close()
-    return count
-
-# --- NOMZODLAR (CANDIDATES) BILAN ISHLASH ---
 def add_candidate_to_db(username, chat_id):
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
     try:
+        # 'username' PRIMARY KEY bo'lsa, bitta odamni ikki marta qo'shish xato beradi
+        # Shuning uchun INSERT OR IGNORE yoki try-except ishlatamiz
         cursor.execute(
             "INSERT INTO candidates (username, votes, chat_id) VALUES (?, 0, ?)", 
             (username, str(chat_id))
@@ -79,6 +56,7 @@ def add_candidate_to_db(username, chat_id):
         conn.commit()
         return True
     except sqlite3.IntegrityError:
+        # Foydalanuvchi allaqachon mavjud bo'lsa shunchaki False qaytaradi
         return False
     except Exception as e:
         print(f"Baza xatosi: {e}")
@@ -102,8 +80,25 @@ def get_all_candidates():
     conn.close()
     return [dict(row) for row in rows]
 
-# --- KANALLAR BILAN ISHLASH ---
+def get_all_user_ids():
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id FROM users")
+    ids = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    return ids
+
+def get_total_users():
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM users")
+    count = cursor.fetchone()[0]
+    conn.close()
+    return count
+
+init_db()
 def add_channel(username):
+    """Obuna kanalini bazaga qo'shish"""
     if not username.startswith("@"):
         username = "@" + username
     conn = sqlite3.connect('bot_data.db')
@@ -118,6 +113,7 @@ def add_channel(username):
         conn.close()
 
 def get_channels():
+    """Barcha kanallarni olish"""
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
     cursor.execute("SELECT username FROM channels")
@@ -126,13 +122,29 @@ def get_channels():
     return [row[0] for row in rows]
 
 def remove_channel(username):
+    """Kanalni o'chirish"""
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
     cursor.execute("DELETE FROM channels WHERE username = ?", (username,))
     conn.commit()
     conn.close()
 
-# --- KOMMENTARIYALAR BILAN ISHLASH (Yangi funksiyalar) ---
+def init_db():
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    # Ishtirokchilar jadvali
+    cursor.execute('''CREATE TABLE IF NOT EXISTS candidates 
+                      (username TEXT PRIMARY KEY, votes INTEGER DEFAULT 0, 
+                       chat_id TEXT, post_id INTEGER)''')
+    # Ovozlar jadvali (Ovozli batl uchun)
+    cursor.execute('''CREATE TABLE IF NOT EXISTS votes 
+                      (user_id INTEGER, candidate_username TEXT)''')
+    # KOMMENTLARNI SANASH JADVALI (Yangi)
+    cursor.execute('''CREATE TABLE IF NOT EXISTS commenters 
+                      (post_id INTEGER, user_id INTEGER, UNIQUE(post_id, user_id))''')
+    conn.commit()
+    conn.close()
+
 def add_commenter(post_id, user_id):
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
@@ -152,6 +164,4 @@ def get_unique_comments_count(post_id):
     count = cursor.fetchone()[0]
     conn.close()
     return count
-
-# Bazani ishga tushirish
-init_db()
+    
