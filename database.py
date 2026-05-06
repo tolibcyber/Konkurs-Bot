@@ -1,5 +1,6 @@
 import sqlite3
 from datetime import datetime
+import logging
 
 ADMIN_ID = 7288739341 
 
@@ -47,19 +48,17 @@ def add_candidate_to_db(username, chat_id):
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
     try:
-        # 'username' PRIMARY KEY bo'lsa, bitta odamni ikki marta qo'shish xato beradi
-        # Shuning uchun INSERT OR IGNORE yoki try-except ishlatamiz
-        cursor.execute(
-            "INSERT INTO candidates (username, votes, chat_id) VALUES (?, 0, ?)", 
-            (username, str(chat_id))
-        )
+        # Avval bu ishtirokchi bazada bor-yo'qligini tekshiramiz
+        cursor.execute("SELECT username FROM candidates WHERE username = ?", (username,))
+        if cursor.fetchone():
+            return False  # Allaqachon bor bo'lsa False qaytaramiz
+
+        # Agar yo'q bo'lsa, qo'shamiz
+        cursor.execute("INSERT INTO candidates (username, votes, chat_id) VALUES (?, ?, ?)", (username, 0, chat_id))
         conn.commit()
         return True
-    except sqlite3.IntegrityError:
-        # Foydalanuvchi allaqachon mavjud bo'lsa shunchaki False qaytaradi
-        return False
     except Exception as e:
-        print(f"Baza xatosi: {e}")
+        logging.error(f"Baza xatosi: {e}")
         return False
     finally:
         conn.close()
@@ -164,4 +163,3 @@ def get_unique_comments_count(post_id):
     count = cursor.fetchone()[0]
     conn.close()
     return count
-    
