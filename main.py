@@ -43,9 +43,9 @@ async def auto_update_scores(bot: Bot):
 
             # --- TAHRIRLASH MATNI ---
             new_text = (
-                f"🏆 <b>BATTLE ISHTIROKCHISI:</b> {c['username']}\n\n"
+                f"🏆 <b>BATTLE ISHTIROKCHISI:</b> @{c['username']}\n\n"
                 f"❤️ Reaksiyalar: {reactions_count}/100 (+{r_ball} ball)\n"
-                f"💬 Komentlar: {unique_comments}/50 (+{k_ball} ball)\n"
+                f"💬 Komentlar: {unique_comments}/100 (+{k_ball} ball)\n"
                 f"⭐ Stars: {stars_count}/∞ (+{s_ball} ball)\n\n"
                 f"📈 <b>UMUMIY BALL: {total_score}</b>"
             )
