@@ -993,6 +993,30 @@ async def join_new_battle_handler(callback: types.CallbackQuery):
         logging.error(f"Reply yuborishda xato: {e}")
         await callback.answer("Xatolik: Bot xabar yubora olmadi! ❌", show_alert=True)
 
+
+@router.message(F.text == "🚀 Tekin Nakrutka")
+async def free_boost_handler(message: types.Message):
+    # Bu yerda foydalanuvchiga maqsadni tushuntiramiz
+    text = (
+        "<b>🚀 Tekin Nakrutka bo'limi!</b>\n\n"
+        "Do'stlar, bu bo'lim hali tayyorlanmoqda. Botimiz foydalanuvchilari soni "
+        "<b>1000 taga</b> yetishi bilan ushbu xizmat mutlaqo tekin ishga tushadi! 😍\n\n"
+        "Hozirda foydalanuvchilarimiz ozroq botda. Botni do'stlaringizga ulashing va "
+        "imkoniyatni tezroq oching! ✨"
+    )
+    await message.answer(text, parse_mode="HTML")
+
+@router.message(F.text == "🛠 Xizmatlar / Qollab-quvvatlash")
+async def support_handler(message: types.Message):
+    text = (
+        "<b>🛠 Bizning Xizmatlar:</b>\n"
+        "• Bot yaratish xizmati\n"
+        "• Kanallarni reklama qilish\n"
+        "• Texnik yordam\n\n"
+        "Savollaringiz bo'lsa, adminga murojaat qiling: @Tolibdev"
+    )
+    await message.answer(text, parse_mode="HTML")
+
 # 1. Avval Klassni yozamiz (Funksiyalardan tepada tursin)
 class AdminStates(StatesGroup):
     waiting_for_ads = State()
@@ -1050,6 +1074,16 @@ async def process_b_text(message: types.Message, state: FSMContext):
 async def finalize_battle(message: types.Message, state: FSMContext):
     data = await state.get_data()
     channel = message.text.strip()
+    
+    # --- YANGI XAVFSIZLIK TEKSHIRUVI ---
+    is_admin = await check_user_is_admin(message.bot, channel, message.from_user.id)
+    
+    if not is_admin:
+        return await message.answer(
+            f"❌ <b>Xatolik!</b>\n\nSiz {channel} kanalida administrator emassiz. "
+            f"Faqat o'zingiz admin bo'lgan kanallarda battle boshlashingiz mumkin!",
+            parse_mode="HTML"
+        )
     # ------------------------------------
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -1112,36 +1146,3 @@ def add_candidate_to_db(username, chat_id):
         return False
     finally:
         conn.close()
-
-@router.message(F.text == "🚀 Tekin Nakrutka")
-async def free_boost_handler(message: types.Message):
-    # Bu yerda foydalanuvchiga maqsadni tushuntiramiz
-    text = (
-        "<b>🚀 Tekin Nakrutka bo'limi!</b>\n\n"
-        "Do'stlar, bu bo'lim hali tayyorlanmoqda. Botimiz foydalanuvchilari soni "
-        "<b>1000 taga</b> yetishi bilan ushbu xizmat mutlaqo tekin ishga tushadi! 😍\n\n"
-        "Hozirda foydalanuvchilarimiz soni kam. Botni do'stlaringizga ulashing va "
-        "imkoniyatni tezroq oching! ✨"
-    )
-    await message.answer(text, parse_mode="HTML")
-
-@router.message(F.text == "🛠 Xizmatlar / Qollab-quvvatlash")
-async def support_handler(message: types.Message):
-    text = (
-        "<b>🛠 Bizning Xizmatlar:</b>\n"
-        "• Bot yaratish xizmati\n"
-        "• Kanallarni reklama qilish\n"
-        "• Texnik yordam\n\n"
-        "Savollaringiz bo'lsa, adminga murojaat qiling: @TolibDev"
-    )
-    await message.answer(text, parse_mode="HTML")
-
-   # --- YANGI XAVFSIZLIK TEKSHIRUVI ---
-    is_admin = await check_user_is_admin(message.bot, channel, message.from_user.id)
-    
-    if not is_admin:
-        return await message.answer(
-            f"❌ <b>Xatolik!</b>\n\nSiz {channel} kanalida administrator emassiz. "
-            f"Faqat o'zingiz admin bo'lgan kanallarda battle boshlashingiz mumkin!",
-            parse_mode="HTML"
-        )
