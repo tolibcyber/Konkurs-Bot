@@ -319,26 +319,44 @@ async def join_contest_handler(callback: types.CallbackQuery):
 
 @router.callback_query(F.data == "join_new_battle")
 async def join_new_battle_handler(callback: types.CallbackQuery):
+    # 1. Majburiy obunani tekshirish
     if not await is_subscribed(callback.bot, callback.from_user.id):
-        return await callback.answer("Avval kanalga obuna bo'ling!", show_alert=True)
+        return await callback.answer("Avval kanalga obuna bo'ling! 📢", show_alert=True)
 
-    username = callback.from_user.username or callback.from_user.first_name
-    
-    # Ishtirokchi posti (Reply qilib)
-    participant_text = f"🏆 <b>BATTLE ISHTIROKCHISI:</b> @{username}\n\n❤️ Reaksiyalar: +1 ball (100)\n💬 Komentlar: +2 ball (100)\n⭐ Stars: Cheksiz\n\n📈 <b>UMUMIY BALL: 0</b>"
+    user = callback.from_user
+    username = user.username or user.first_name
+    chat_id = callback.message.chat.id  # Tugma bosilgan kanal IDsi
+    main_post_id = callback.message.message_id # Asosiy "Battle boshlandi" posti IDsi
 
-    new_post = await callback.bot.send_message(
-        chat_id=callback.message.chat.id,
-        text=participant_text,
-        reply_to_message_id=LAST_BATTLE_POST["message_id"],
-        parse_mode="HTML"
+    # 2. Ishtirokchi matni
+    participant_text = (
+        f"🏆 <b>BATTLE ISHTIROKCHISI:</b> @{user.username if user.username else user.first_name}\n\n"
+        f"❤️ Reaksiyalar: +1 ball\n"
+        f"💬 Komentlar: +2 ball\n"
+        f"⭐ Stars: Cheksiz\n\n"
+        f"📈 <b>UMUMIY BALL: 0</b>"
     )
-    
-    if add_candidate_to_db(username):
-        update_candidate_post_id(username, new_post.message_id)
-        await callback.answer("Qo'shildingiz!", show_alert=True)
-    else:
-        await callback.answer("Siz allaqachon ro'yxatdasiz!", show_alert=True)
+
+    try:
+        # 3. REPLY qilib yuborish
+        new_post = await callback.bot.send_message(
+            chat_id=chat_id,
+            text=participant_text,
+            reply_to_message_id=main_post_id, # Aynan o'sha xabarga javob qiladi
+            parse_mode="HTML"
+        )
+        
+        # 4. Bazaga saqlash
+        # Username bazada bor bo'lsa xato bermasligi uchun tekshiramiz
+        if add_candidate_to_db(username, chat_id):
+            update_candidate_post_id(username, new_post.message_id)
+            await callback.answer("Siz muvaffaqiyatli qo'shildingiz! ✅", show_alert=True)
+        else:
+            await callback.answer("Siz allaqachon ro'yxatdasiz! 😊", show_alert=True)
+
+    except Exception as e:
+        logging.error(f"Reply yuborishda xato: {e}")
+        await callback.answer("Xatolik: Bot xabar yubora olmadi! ❌", show_alert=True)
 
 # 1. Avval Klassni yozamiz (Funksiyalardan tepada tursin)
 class AdminStates(StatesGroup):
