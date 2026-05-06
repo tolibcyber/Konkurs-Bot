@@ -268,22 +268,34 @@ async def results_callback(callback: types.CallbackQuery):
     if not candidates:
         return await callback.answer("Hozircha nomzodlar yo'q!", show_alert=True)
     
+    # 1. Hammaga chiqadigan alert xabari
     res_txt = "📊 Konkurs natijalari:\n\n"
     for i, c in enumerate(candidates, 1):
+        # Bu yerda @ qo'shmaymiz, chunki bazada @ bilan saqlangan
         res_txt += f"{i}. {c['username']} — {c['votes']} ovoz\n"
     
     await callback.answer(res_txt, show_alert=True)
-    user_status = await callback.bot.get_chat_member(chat_id=callback.message.chat.id, user_id=callback.from_user.id)
+
+    # 2. Kanal egasi yoki Admin bosganda kanalga yuborish
+    user_id = callback.from_user.id
+    user_status = await callback.bot.get_chat_member(chat_id=callback.message.chat.id, user_id=user_id)
     
-    if str(callback.from_user.id) == str(ADMIN_ID) or user_status.status in ["administrator", "creator"]:
+    # Tekshiruv: Agar u asosiy ADMIN bo'lsa YOKI kanalda admin bo'lsa
+    if str(user_id) == str(ADMIN_ID) or user_status.status in ["administrator", "creator"]:
         top_5 = candidates[:5]
         top_txt = "🔥 <b>TOP 5 G'oliblar</b>\n\n"
+        
         for i, c in enumerate(top_5, 1):
-            top_txt += f"{i}️⃣ @{c['username']} — {c['votes']} ta ovoz\n"
+            # Bazadagi username @ bilan bo'lsa, to'g'ri chiqadi
+            top_txt += f"{i}️⃣ {c['username']} — {c['votes']} ta ovoz\n"
+        
         top_txt += "\n🏆 <i>G'oliblik sari olg'a!</i>"
+        
         try:
+            # Kanalga yuborish
             await callback.message.answer(top_txt, parse_mode="HTML")
-        except: pass
+        except Exception as e:
+            logging.error(f"Kanalga natijani yuborishda xato: {e}")
 
 # --- OVOZLI BATL: QATNASHISH VA BALLARNI YANGILASH ---
 @router.callback_query(F.data == "join_contest")
@@ -467,5 +479,4 @@ def get_all_candidates():
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
-
 
