@@ -1050,16 +1050,6 @@ async def process_b_text(message: types.Message, state: FSMContext):
 async def finalize_battle(message: types.Message, state: FSMContext):
     data = await state.get_data()
     channel = message.text.strip()
-    
-    # --- YANGI XAVFSIZLIK TEKSHIRUVI ---
-    is_admin = await check_user_is_admin(message.bot, channel, message.from_user.id)
-    
-    if not is_admin:
-        return await message.answer(
-            f"❌ <b>Xatolik!</b>\n\nSiz {channel} kanalida administrator emassiz. "
-            f"Faqat o'zingiz admin bo'lgan kanallarda battle boshlashingiz mumkin!",
-            parse_mode="HTML"
-        )
     # ------------------------------------
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -1130,7 +1120,7 @@ async def free_boost_handler(message: types.Message):
         "<b>🚀 Tekin Nakrutka bo'limi!</b>\n\n"
         "Do'stlar, bu bo'lim hali tayyorlanmoqda. Botimiz foydalanuvchilari soni "
         "<b>1000 taga</b> yetishi bilan ushbu xizmat mutlaqo tekin ishga tushadi! 😍\n\n"
-        "Hozirda 29 ta foydalanuvchimiz bor. Botni do'stlaringizga ulashing va "
+        "Hozirda foydalanuvchilarimiz soni kam. Botni do'stlaringizga ulashing va "
         "imkoniyatni tezroq oching! ✨"
     )
     await message.answer(text, parse_mode="HTML")
@@ -1142,6 +1132,16 @@ async def support_handler(message: types.Message):
         "• Bot yaratish xizmati\n"
         "• Kanallarni reklama qilish\n"
         "• Texnik yordam\n\n"
-        "Savollaringiz bo'lsa, adminga murojaat qiling: @Sening_Username"
+        "Savollaringiz bo'lsa, adminga murojaat qiling: @TolibDev"
     )
     await message.answer(text, parse_mode="HTML")
+
+   # --- YANGI XAVFSIZLIK TEKSHIRUVI ---
+    is_admin = await check_user_is_admin(message.bot, channel, message.from_user.id)
+    
+    if not is_admin:
+        return await message.answer(
+            f"❌ <b>Xatolik!</b>\n\nSiz {channel} kanalida administrator emassiz. "
+            f"Faqat o'zingiz admin bo'lgan kanallarda battle boshlashingiz mumkin!",
+            parse_mode="HTML"
+        )
