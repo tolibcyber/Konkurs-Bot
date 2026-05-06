@@ -571,6 +571,6 @@ async def support_handler(message: types.Message):
         "• Bot yaratish xizmati\n"
         "• Kanallarni reklama qilish\n"
         "• Texnik yordam\n\n"
-        "Savollaringiz bo'lsa, adminga murojaat qiling: @Sening_Username"
+        "Savollaringiz bo'lsa, adminga murojaat qiling: @TolibDev"
     )
     await message.answer(text, parse_mode="HTML")
