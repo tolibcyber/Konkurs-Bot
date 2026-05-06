@@ -279,7 +279,7 @@ async def results_callback(callback: types.CallbackQuery):
         top_5 = candidates[:5]
         top_txt = "🔥 <b>TOP 5 G'oliblar</b>\n\n"
         for i, c in enumerate(top_5, 1):
-            top_txt += f"{i️} @{c['username']} — {c['votes']} ta ovoz\n"
+            top_txt += f"{i}️⃣ @{c['username']} — {c['votes']} ta ovoz\n"
         top_txt += "\n🏆 <i>G'oliblik sari olg'a!</i>"
         try:
             await callback.message.answer(top_txt, parse_mode="HTML")
@@ -358,12 +358,15 @@ async def admin_stats_callback(callback: types.CallbackQuery):
 
 @router.message(F.text == "🚀 Yangi Battle (Beta)")
 async def create_new_battle(message: types.Message, state: FSMContext):
-    # Bu tugmani hamma bosa oladi, lekin faqat admin boshqara oladi
-    if str(message.from_user.id) == str(ADMIN_ID):
-        await message.answer("📝 Battle uchun asosiy matnni kiriting (Kanalda chiqadi):")
-        await state.set_state(AdminStates.waiting_for_battle_text)
-    else:
-        await message.answer("Siz ham o'z kanalingizda shunday battle o'tkazmoqchimisiz? Botni kanalga admin qiling va #battle deb yozing!")
+    # Endi bu yerda if str(user_id) == str(ADMIN_ID) tekshiruvi yo'q!
+    # Hamma foydalana oladi
+    await message.answer(
+        "<b>Yangi Battle yaratish bo'limi</b> 🚀\n\n"
+        "1️⃣ Avval battle uchun asosiy matnni yuboring (masalan: 'Kim chiroyli rasm chizadi?'):\n\n"
+        "<i>Bekor qilish uchun /cancel yuboring.</i>",
+        parse_mode="HTML"
+    )
+    await state.set_state(AdminStates.waiting_for_battle_text)
 
 @router.message(AdminStates.waiting_for_battle_text)
 async def process_b_text(message: types.Message, state: FSMContext):
@@ -374,18 +377,35 @@ async def process_b_text(message: types.Message, state: FSMContext):
 @router.message(AdminStates.waiting_for_battle_channel)
 async def finalize_battle(message: types.Message, state: FSMContext):
     data = await state.get_data()
-    channel = message.text
-    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="✅ Battlega qatnashish", callback_data="join_new_battle")]])
+    channel = message.text # Foydalanuvchi yuborgan kanal ID yoki @username
     
-    sent_msg = await message.bot.send_message(chat_id=channel, text=data['b_text'], reply_markup=kb, parse_mode="HTML")
-    LAST_BATTLE_POST["chat_id"] = sent_msg.chat.id
-    LAST_BATTLE_POST["message_id"] = sent_msg.message_id
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Battlega qatnashish", callback_data="join_new_battle")]
+    ])
     
-    await message.answer(f"✅ Battle kanalga yuborildi!")
-    await state.clear()
-
-LAST_BATTLE_POST = {"chat_id": None, "message_id": None}
-# Bu o'zgarmaydi, lekin pastdagi funksiyalarda ishlatamiz.
+    try:
+        # Bot kanalda adminligini va xabar yubora olishini tekshiramiz
+        sent_msg = await message.bot.send_message(
+            chat_id=channel, 
+            text=data['b_text'], 
+            reply_markup=kb, 
+            parse_mode="HTML"
+        )
+        
+        # Battle ma'lumotlarini eslab qolamiz
+        LAST_BATTLE_POST["chat_id"] = sent_msg.chat.id
+        LAST_BATTLE_POST["message_id"] = sent_msg.message_id
+        
+        await message.answer(f"✅ Battle muvaffaqiyatli boshlandi! \nKanal: {channel}")
+        await state.clear()
+        
+    except Exception as e:
+        await message.answer(
+            f"❌ <b>Xatolik yuz berdi!</b>\n\n"
+            f"Botni {channel} kanaliga admin qilganingizga va xabar yuborish huquqi borligiga ishonch hosil qiling.",
+            parse_mode="HTML"
+        )
+        logging.error(f"Battle yaratishda xato: {e}")
 
 @router.callback_query(F.data == "back_to_main")
 async def back_to_main_handler(callback: types.CallbackQuery):
@@ -429,4 +449,5 @@ def get_all_candidates():
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
 
