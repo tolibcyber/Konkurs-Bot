@@ -1,6 +1,5 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, ReplyKeyboardMarkup, KeyboardButton
-
-# 1. ASOSIY REPLI MENYU (Barcha bo'limlar ajratilgan)
+# 1. ASOSIY REPLI MENYU (Yangilangan: 6 ta asosiy tugma bilan)
 def main_reply_menu(user_id, admin_id):
     kb = [
         [
@@ -10,9 +9,15 @@ def main_reply_menu(user_id, admin_id):
         [
             KeyboardButton(text="🎤 Ovozli Batl"),
             KeyboardButton(text="🚀 Yangi Battle (Beta)")
+        ],
+        [
+            # Yangi qo'shilgan tugmalar
+            KeyboardButton(text="🚀 Tekin Nakrutka"), 
+            KeyboardButton(text="🛠 Xizmatlar / Qollab-quvvatlash")
         ]
     ]
     
+    # Agar foydalanuvchi admin bo'lsa, 7-tugma bo'lib Admin Panel qo'shiladi
     if str(user_id) == str(admin_id):
         kb.append([KeyboardButton(text="⚙️ Admin Panel")])
         
