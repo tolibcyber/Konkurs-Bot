@@ -9,6 +9,8 @@ from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter
+import asyncio
 
 # O'zing yaratgan fayllardan importlar
 from keyboard import *
@@ -236,20 +238,53 @@ async def process_ad_distribution(message: types.Message, state: FSMContext):
 
     user_ids = get_all_user_ids()
     count = 0
-    status_msg = await message.answer(f"🚀 Yuborish boshlandi: 0/{len(user_ids)}")
+    blocked_count = 0 # Bloklaganlarni ham sanaymiz
+    all_users = len(user_ids)
+    
+    status_msg = await message.answer(f"🚀 Yuborish boshlandi: 0/{all_users}")
     
     for uid in user_ids:
         try:
+            # Xabarni nusxalash (matn, rasm, video - farqi yo'q)
             await message.copy_to(chat_id=uid)
             count += 1
+            
+            # Har 20 ta xabarda statusni yangilash
             if count % 20 == 0:
-                await status_msg.edit_text(f"🚀 Yuborilmoqda: {count}/{len(user_ids)}")
-            await asyncio.sleep(0.05)
-        except: pass
-    
-    await message.answer(f"✅ Reklama muvaffaqiyatli yakunlandi!\n\nJami: {count} ta foydalanuvchiga yuborildi.")
-    await state.clear()
+                try:
+                    await status_msg.edit_text(f"🚀 Yuborilmoqda: {count}/{all_users}")
+                except:
+                    pass # Status xabari tahrirlanmasa, to'xtab qolmasin
 
+            # Telegram "Flood limit"ga tushmaslik uchun qisqa pauza
+            await asyncio.sleep(0.05)
+
+        except TelegramForbiddenError:
+            # Agar foydalanuvchi botni bloklagan bo'lsa
+            blocked_count += 1
+            continue
+
+        except TelegramRetryAfter as e:
+            # Agar Telegram "to'xta" desa, aytilgan vaqtcha kutamiz
+            await asyncio.sleep(e.retry_after)
+            await message.copy_to(chat_id=uid) # Qayta urinish
+            count += 1
+
+        except Exception as e:
+            # Boshqa kutilmagan xatolar
+            print(f"Xatolik (User ID: {uid}): {e}")
+            continue
+    
+    # Yakuniy hisobot
+    report = (
+        f"✅ Reklama muvaffaqiyatli yakunlandi!\n\n"
+        f"📊 Jami foydalanuvchi: {all_users}\n"
+        f"👤 Qabul qildi: {count}\n"
+        f"🚫 Bloklaganlar: {blocked_count}"
+    )
+    
+    await message.answer(report)
+    await state.clear()
 # --- 6. CALLBACKLAR ---
 @router.callback_query(F.data.startswith("check_sub_"))
 async def check_subscription_callback(callback: types.CallbackQuery):
@@ -486,7 +521,7 @@ async def free_boost_handler(message: types.Message):
         "<b>🚀 Tekin Nakrutka bo'limi!</b>\n\n"
         "Do'stlar, bu bo'lim hali tayyorlanmoqda. Botimiz foydalanuvchilari soni "
         "<b>1000 taga</b> yetishi bilan ushbu xizmat mutlaqo tekin ishga tushadi! 😍\n\n"
-        "Hozirda kam foydalanuvchimiz bor. Botni do'stlaringizga ulashing va "
+        "Hozirda 29 ta foydalanuvchimiz bor. Botni do'stlaringizga ulashing va "
         "imkoniyatni tezroq oching! ✨"
     )
     await message.answer(text, parse_mode="HTML")
@@ -498,6 +533,6 @@ async def support_handler(message: types.Message):
         "• Bot yaratish xizmati\n"
         "• Kanallarni reklama qilish\n"
         "• Texnik yordam\n\n"
-        "Savollaringiz bo'lsa, adminga murojaat qiling: @TolibDev"
+        "Savollaringiz bo'lsa, adminga murojaat qiling: @Sening_Username"
     )
     await message.answer(text, parse_mode="HTML")
