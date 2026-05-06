@@ -237,15 +237,24 @@ async def process_ad_distribution(message: types.Message, state: FSMContext):
         return await message.answer("Reklama yuborish bekor qilindi. ❌")
 
     user_ids = get_all_user_ids()
+    
+    # --- TEKSHIRUV ---
+    if not user_ids:
+        await state.clear()
+        return await message.answer("Bazada foydalanuvchilar topilmadi. 🧐")
+    
     count = 0
-    blocked_count = 0 # Bloklaganlarni ham sanaymiz
+    blocked_count = 0
     all_users = len(user_ids)
     
     status_msg = await message.answer(f"🚀 Yuborish boshlandi: 0/{all_users}")
     
-    for uid in user_ids:
+    for row in user_ids:
+        # ID'ni tuple ichidan ajratib olish (muammo shunda bo'lishi mumkin)
+        uid = row[0] if isinstance(row, (tuple, list)) else row
+        
         try:
-            # Xabarni nusxalash (matn, rasm, video - farqi yo'q)
+            # Xabarni nusxalash
             await message.copy_to(chat_id=uid)
             count += 1
             
@@ -254,28 +263,26 @@ async def process_ad_distribution(message: types.Message, state: FSMContext):
                 try:
                     await status_msg.edit_text(f"🚀 Yuborilmoqda: {count}/{all_users}")
                 except:
-                    pass # Status xabari tahrirlanmasa, to'xtab qolmasin
+                    pass
 
-            # Telegram "Flood limit"ga tushmaslik uchun qisqa pauza
             await asyncio.sleep(0.05)
 
         except TelegramForbiddenError:
-            # Agar foydalanuvchi botni bloklagan bo'lsa
             blocked_count += 1
             continue
 
         except TelegramRetryAfter as e:
-            # Agar Telegram "to'xta" desa, aytilgan vaqtcha kutamiz
             await asyncio.sleep(e.retry_after)
-            await message.copy_to(chat_id=uid) # Qayta urinish
-            count += 1
+            try:
+                await message.copy_to(chat_id=uid)
+                count += 1
+            except:
+                pass
 
         except Exception as e:
-            # Boshqa kutilmagan xatolar
             print(f"Xatolik (User ID: {uid}): {e}")
             continue
     
-    # Yakuniy hisobot
     report = (
         f"✅ Reklama muvaffaqiyatli yakunlandi!\n\n"
         f"📊 Jami foydalanuvchi: {all_users}\n"
