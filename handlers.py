@@ -11,6 +11,15 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter
 import asyncio
+from aiogram.exceptions import TelegramBadRequest
+
+async def is_user_admin(bot, chat_id, user_id):
+    try:
+        member = await bot.get_chat_member(chat_id=chat_id, user_id=user_id)
+        # Faqat admin yoki kanal egasi bo'lsa True qaytaradi
+        return member.status in ["administrator", "creator"]
+    except Exception:
+        return False
 
 # O'zing yaratgan fayllardan importlar
 from keyboard import *
@@ -437,10 +446,21 @@ async def admin_stats_callback(callback: types.CallbackQuery):
         parse_mode="HTML"
     ) # Qavs bu yerda yopilishi kerak!
 
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
+
+# --- YORDAMCHI FUNKSIYA (Adminni tekshirish uchun) ---
+async def check_user_is_admin(bot, chat_id, user_id):
+    try:
+        member = await bot.get_chat_member(chat_id=chat_id, user_id=user_id)
+        # Faqat kanal egasi yoki admin bo'lsa True qaytaradi
+        return member.status in ["administrator", "creator"]
+    except Exception:
+        return False
+
+# --- HANDLERLAR ---
+
 @router.message(F.text == "🚀 Yangi Battle (Beta)")
 async def create_new_battle(message: types.Message, state: FSMContext):
-    # Endi bu yerda if str(user_id) == str(ADMIN_ID) tekshiruvi yo'q!
-    # Hamma foydalana oladi
     await message.answer(
         "<b>Yangi Battle yaratish bo'limi</b> 🚀\n\n"
         "1️⃣ Avval battle uchun asosiy matnni yuboring (masalan: 'Battle Boshlandi Yutuq Gift '):\n\n"
@@ -458,8 +478,19 @@ async def process_b_text(message: types.Message, state: FSMContext):
 @router.message(AdminStates.waiting_for_battle_channel)
 async def finalize_battle(message: types.Message, state: FSMContext):
     data = await state.get_data()
-    channel = message.text # Foydalanuvchi yuborgan kanal ID yoki @username
+    channel = message.text.strip()
     
+    # --- YANGI XAVFSIZLIK TEKSHIRUVI ---
+    is_admin = await check_user_is_admin(message.bot, channel, message.from_user.id)
+    
+    if not is_admin:
+        return await message.answer(
+            f"❌ <b>Xatolik!</b>\n\nSiz {channel} kanalida administrator emassiz. "
+            f"Faqat o'zingiz admin bo'lgan kanallarda battle boshlashingiz mumkin!",
+            parse_mode="HTML"
+        )
+    # ------------------------------------
+
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Battlega qatnashish", callback_data="join_new_battle")]
     ])
