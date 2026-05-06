@@ -13,14 +13,6 @@ from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter
 import asyncio
 from aiogram.exceptions import TelegramBadRequest
 
-async def is_user_admin(bot, chat_id, user_id):
-    try:
-        member = await bot.get_chat_member(chat_id=chat_id, user_id=user_id)
-        # Faqat admin yoki kanal egasi bo'lsa True qaytaradi
-        return member.status in ["administrator", "creator"]
-    except Exception:
-        return False
-
 # O'zing yaratgan fayllardan importlar
 from keyboard import *
 from database import (
@@ -459,6 +451,14 @@ async def check_user_is_admin(bot, chat_id, user_id):
 
 # --- HANDLERLAR ---
 
+async def is_user_admin(bot, chat_id, user_id):
+    try:
+        member = await bot.get_chat_member(chat_id=chat_id, user_id=user_id)
+        # Faqat admin yoki kanal egasi bo'lsa True qaytaradi
+        return member.status in ["administrator", "creator"]
+    except Exception:
+        return False
+
 @router.message(F.text == "🚀 Yangi Battle (Beta)")
 async def create_new_battle(message: types.Message, state: FSMContext):
     await message.answer(
@@ -571,6 +571,6 @@ async def support_handler(message: types.Message):
         "• Bot yaratish xizmati\n"
         "• Kanallarni reklama qilish\n"
         "• Texnik yordam\n\n"
-        "Savollaringiz bo'lsa, adminga murojaat qiling: @TolibDev"
+        "Savollaringiz bo'lsa, adminga murojaat qiling: @Sening_Username"
     )
     await message.answer(text, parse_mode="HTML")
