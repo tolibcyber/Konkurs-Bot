@@ -306,50 +306,52 @@ async def check_subscription_callback(callback: types.CallbackQuery):
 
 @router.callback_query(F.data == "results")
 async def results_callback(callback: types.CallbackQuery):
-    candidates = get_all_candidates()
-    if not candidates:
-        return await callback.answer("Hozircha nomzodlar yo'q!", show_alert=True)
-    
-    # 1. Hammaga chiqadigan alert (Shaxsiy xabarnoma)
-    res_txt = "📊 Konkurs natijalari:\n\n"
-    for i, c in enumerate(candidates, 1):
-        res_txt += f"{i}. {c['username']} — {c['votes']} ovoz\n"
-    
-    await callback.answer(res_txt, show_alert=True)
-
-    # 2. Kanalga post chiqarish qismini to'g'irlaymiz
     user_id = callback.from_user.id
     chat_id = callback.message.chat.id
-
-    # Agarda tugma shaxsiyda (lichkada) bosilsa, kanalga natija tashlamasligi kerak
-    if callback.message.chat.type not in ["channel", "group", "supergroup"]:
-        return
-
+    
+    # 1. Adminlik huquqini birinchi bo'lib tekshiramiz
     try:
-        # Foydalanuvchining statusini tekshiramiz
         user_status = await callback.bot.get_chat_member(chat_id=chat_id, user_id=user_id)
-        
-        # TEKSHIRUV: Asosiy admin yoki kanal admini/egasi bo'lsa
         is_admin = (
             str(user_id) == str(ADMIN_ID) or 
             user_status.status in ["administrator", "creator"]
         )
+    except Exception:
+        is_admin = False
 
-        if is_admin:
-            top_5 = candidates[:5]
-            top_txt = "🔥 <b>TOP 5 G'oliblar</b>\n\n"
-            
-            for i, c in enumerate(top_5, 1):
-                top_txt += f"{i}️⃣ {c['username']} — {c['votes']} ta ovoz\n"
-            
-            top_txt += "\n🏆 <i>G'oliblik sari olg'a!</i>"
-            
-            # Xabarni aynan o'sha kanalga yuborish
-            await callback.message.answer(top_txt, parse_mode="HTML")
-            
-    except Exception as e:
-        # Foydalanuvchi botni bloklagan bo'lsa yoki huquq yetmasa xato bermaydi
-        logging.error(f"Natijani tekshirishda xato: {e}")
+    # 2. Agar admin bo'lmasa, jarayonni shu yerda to'xtatamiz
+    if not is_admin:
+        return await callback.answer(
+            "⚠️ Kechirasiz, natijalarni faqat kanal adminlari e'lon qilishi mumkin!", 
+            show_alert=True
+        )
+
+    # 3. Nomzodlarni olish
+    candidates = get_all_candidates()
+    if not candidates:
+        return await callback.answer("Hozircha nomzodlar yo'q!", show_alert=True)
+
+    # 4. Faqat admin uchun kanalga chiroyli natija chiqarish
+    top_5 = candidates[:5]
+    top_txt = (
+        "📊 <b>JORIY NATIJALAR | TOP 5</b>\n\n"
+        "───────────────────\n"
+    )
+    
+    for i, c in enumerate(top_5, 1):
+        # Emoji o'rinlari (1-3 o'rinlar uchun maxsus)
+        medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(i, f"{i}️⃣")
+        top_txt += f"{medal} <b>{c['username']}</b> — <code>{c['votes']}</code> ta ovoz\n"
+    
+    top_txt += (
+        "───────────────────\n\n"
+        "🏆 <b>G'oliblik sari intiling!</b>\n"
+        "📢 <i>Do'stlaringizni taklif qilishda davom eting.</i>"
+    )
+
+    # Xabarni kanal/gruppaga yuborish
+    await callback.message.answer(top_txt, parse_mode="HTML")
+    await callback.answer("Natijalar muvaffaqiyatli e'lon qilindi! ✅")
 
 # --- OVOZLI BATL: QATNASHISH VA BALLARNI YANGILASH ---
 @router.callback_query(F.data == "join_contest")
@@ -397,7 +399,7 @@ async def join_new_battle_handler(callback: types.CallbackQuery):
         f"🏆 <b>BATTLE ISHTIROKCHISI:</b> @{user.username if user.username else user.first_name}\n\n"
         f"❤️ Reaksiyalar: +1 ball\n"
         f"💬 Komentlar: +2 ball\n"
-        f"⭐ Stars: Cheksiz\n\n"
+        f"⭐ Stars: +5 ball\n\n"
         f"📈 <b>UMUMIY BALL: 0</b>"
     )
 
@@ -662,28 +664,33 @@ async def start_contest_in_channel(message: types.Message):
     except:
         pass
 
+    # Bazani tozalash
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
     cursor.execute("DELETE FROM candidates")
     cursor.execute("DELETE FROM votes")
-    conn.commit(); conn.close()
+    conn.commit()
+    conn.close()
 
     candidates = get_all_candidates()
+    bot_info = await message.bot.get_me()
     
+    # Yangilangan jozibador matn
     battle_text = (
-        f"<b>{message.chat.title}</b> 🧸\n"
-        "🏆 <b>BATL Boshlandi</b>🥳\n\n"
-        "<blockquote>❗ Konkurs shartlari shu kanalga obuna bo'lish va "
-        "do'stlaringiz sizga ovoz berishini so'rashdan iborat.</blockquote>\n"
-        "<blockquote>Agar kanalga qo'shilib ovoz berib chiqib ketsa ovozi avto "
-        "atmen boladi ⛔</blockquote>\n\n"
-        "🎁 Konkursga qo'yilgan yutuqlar <tg-spoiler>Hozircha sir🤫</tg-spoiler>\n\n"
-        "<blockquote>➕ Konkursga qo'shilish uchun quyidagi tugmani bosing 👇</blockquote>"
+        f"📣 <b>{message.chat.title} | YANGI BATL START OLDI!</b> 🎤\n\n"
+        f"🚀 <b>Tanlovda ishtirok eting va o'z mahoratingizni ko'rsating!</b>\n\n"
+        f"📝 <b>Ishtirok etish qoidalari:</b>\n"
+        f"└ ✅ Kanalimizga a'zo bo'lish\n"
+        f"└ 📢 Do'stlaringizni ovoz berishga taklif qilish\n\n"
+        f"⚠️ <b>MUHIM:</b> Kanalga a'zo bo'lmay berilgan ovozlar bot tomonidan <b>avtomatik o'chiriladi</b> va inobatga olinmaydi! ⛔\n\n"
+        f"🎁 <b>G'oliblarni kutilmagan sovg'alar kutmoqda!</b>\n"
+        f"└ 🏆 <i>Yutuqlar:</i> <tg-spoiler>Hozircha sir, lekin juda ajoyib! 🤫</tg-spoiler>\n\n"
+        f"👇 <b>Ishtirokchini tanlash yoki ro'yxatga qo'shilish uchun:</b>"
     )
     
     battle_msg = await message.answer(
         text=battle_text,
-        reply_markup=get_battle_kb(candidates, (await message.bot.get_me()).username),
+        reply_markup=get_battle_kb(candidates, bot_info.username),
         parse_mode="HTML"
     )
     
@@ -1034,15 +1041,6 @@ async def admin_stats_callback(callback: types.CallbackQuery):
     ) # Qavs bu yerda yopilishi kerak!
 
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
-
-# --- YORDAMCHI FUNKSIYA (Adminni tekshirish uchun) ---
-async def check_user_is_admin(bot, chat_id, user_id):
-    try:
-        member = await bot.get_chat_member(chat_id=chat_id, user_id=user_id)
-        # Faqat kanal egasi yoki admin bo'lsa True qaytaradi
-        return member.status in ["administrator", "creator"]
-    except Exception:
-        return False
 
 # --- HANDLERLAR ---
 
