@@ -486,7 +486,7 @@ async def free_boost_handler(message: types.Message):
         "<b>🚀 Tekin Nakrutka bo'limi!</b>\n\n"
         "Do'stlar, bu bo'lim hali tayyorlanmoqda. Botimiz foydalanuvchilari soni "
         "<b>1000 taga</b> yetishi bilan ushbu xizmat mutlaqo tekin ishga tushadi! 😍\n\n"
-        "Hozirda 29 ta foydalanuvchimiz bor. Botni do'stlaringizga ulashing va "
+        "Hozirda kam foydalanuvchimiz bor. Botni do'stlaringizga ulashing va "
         "imkoniyatni tezroq oching! ✨"
     )
     await message.answer(text, parse_mode="HTML")
@@ -498,6 +498,6 @@ async def support_handler(message: types.Message):
         "• Bot yaratish xizmati\n"
         "• Kanallarni reklama qilish\n"
         "• Texnik yordam\n\n"
-        "Savollaringiz bo'lsa, adminga murojaat qiling: @Sening_Username"
+        "Savollaringiz bo'lsa, adminga murojaat qiling: @TolibDev"
     )
     await message.answer(text, parse_mode="HTML")
